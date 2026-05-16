@@ -51,7 +51,7 @@ const ECO_MONS = [
 
 const MAX_DAILY_SCANS = 3;
 const STORAGE_KEY = "ecomon-state";
-const AI_MIN_CONFIDENCE = 0.3;
+const AI_MIN_CONFIDENCE = 0.4;
 const AI_KEYWORDS = [
   {
     id: "pet",
@@ -78,9 +78,24 @@ const AI_KEYWORDS = [
     keywords: ["soda can", "beer can", "tin can", "aluminum", "steel", "metal can"]
   }
 ];
-const AI_KEYWORD_LOOKUP = AI_KEYWORDS.flatMap((hint) =>
-  hint.keywords.map((keyword) => ({ keyword, id: hint.id }))
-);
+const AI_KEYWORD_WORDS = new Map();
+const AI_KEYWORD_PHRASES = [];
+
+AI_KEYWORDS.forEach((hint) => {
+  hint.keywords.forEach((keyword) => {
+    const normalized = keyword.toLowerCase();
+    if (normalized.includes(" ")) {
+      const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      AI_KEYWORD_PHRASES.push({ id: hint.id, regex: new RegExp(`\\b${escaped}\\b`) });
+      return;
+    }
+
+    if (!AI_KEYWORD_WORDS.has(normalized)) {
+      AI_KEYWORD_WORDS.set(normalized, new Set());
+    }
+    AI_KEYWORD_WORDS.get(normalized).add(hint.id);
+  });
+});
 
 const elements = {
   status: document.getElementById("onlineStatus"),
@@ -189,6 +204,21 @@ function getCaptureCanvas() {
   return captureCanvas;
 }
 
+function syncCanvasSize() {
+  const canvas = getCaptureCanvas();
+  const width = elements.cameraFeed.videoWidth;
+  const height = elements.cameraFeed.videoHeight;
+  if (!width || !height) {
+    return;
+  }
+  if (canvas.width !== width) {
+    canvas.width = width;
+  }
+  if (canvas.height !== height) {
+    canvas.height = height;
+  }
+}
+
 function startCamera() {
   if (!navigator.mediaDevices?.getUserMedia) {
     showToast("La fotocamera non è supportata su questo dispositivo.");
@@ -200,6 +230,7 @@ function startCamera() {
     .then((stream) => {
       cameraStream = stream;
       elements.cameraFeed.srcObject = stream;
+      elements.cameraFeed.addEventListener("loadedmetadata", syncCanvasSize, { once: true });
       showToast("Fotocamera attiva. Inquadra il rifiuto!");
       prepareAiModel();
     })
@@ -236,8 +267,11 @@ async function recognizeWaste() {
   }
 
   const canvas = getCaptureCanvas();
-  canvas.width = elements.cameraFeed.videoWidth;
-  canvas.height = elements.cameraFeed.videoHeight;
+  syncCanvasSize();
+  if (!canvas.width || !canvas.height) {
+    showToast("La fotocamera non è ancora pronta. Riprova tra poco.");
+    return;
+  }
   const ctx = canvas.getContext("2d");
   ctx.drawImage(elements.cameraFeed, 0, 0, canvas.width, canvas.height);
 
@@ -270,8 +304,20 @@ function mapPredictionsToEcoMon(predictions) {
   const scores = new Map();
   predictions.forEach((prediction) => {
     const label = prediction.className.toLowerCase();
-    AI_KEYWORD_LOOKUP.forEach((entry) => {
-      if (label.includes(entry.keyword)) {
+    const words = label.split(/[^a-zà-ÿ0-9]+/i).filter(Boolean);
+    words.forEach((word) => {
+      const ids = AI_KEYWORD_WORDS.get(word);
+      if (!ids) {
+        return;
+      }
+      ids.forEach((id) => {
+        const current = scores.get(id) || 0;
+        scores.set(id, Math.max(current, prediction.probability));
+      });
+    });
+
+    AI_KEYWORD_PHRASES.forEach((entry) => {
+      if (entry.regex.test(label)) {
         const current = scores.get(entry.id) || 0;
         scores.set(entry.id, Math.max(current, prediction.probability));
       }

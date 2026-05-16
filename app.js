@@ -215,7 +215,10 @@ async function recognizeWaste() {
     return;
   }
 
-  if (elements.cameraFeed.readyState < 2 || !elements.cameraFeed.videoWidth) {
+  if (
+    elements.cameraFeed.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+    !elements.cameraFeed.videoWidth
+  ) {
     showToast("La fotocamera non è ancora pronta. Riprova tra poco.");
     return;
   }
@@ -297,7 +300,7 @@ function mapPredictionsToEcoMon(predictions) {
     return null;
   }
 
-  return { mon, confidence: Math.round(Math.min(1, bestScore) * 100) };
+  return { mon, confidence: Math.round(bestScore * 100) };
 }
 
 function confirmDeposit() {

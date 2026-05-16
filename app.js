@@ -78,6 +78,9 @@ const AI_KEYWORDS = [
     keywords: ["soda can", "beer can", "tin can", "aluminum", "steel", "metal can"]
   }
 ];
+const AI_KEYWORD_LOOKUP = AI_KEYWORDS.flatMap((hint) =>
+  hint.keywords.map((keyword) => ({ keyword, id: hint.id }))
+);
 
 const elements = {
   status: document.getElementById("onlineStatus"),
@@ -264,9 +267,10 @@ function mapPredictionsToEcoMon(predictions) {
   const scores = new Map();
   predictions.forEach((prediction) => {
     const label = prediction.className.toLowerCase();
-    AI_KEYWORDS.forEach((hint) => {
-      if (hint.keywords.some((keyword) => label.includes(keyword))) {
-        scores.set(hint.id, (scores.get(hint.id) || 0) + prediction.probability);
+    AI_KEYWORD_LOOKUP.forEach((entry) => {
+      if (label.includes(entry.keyword)) {
+        const current = scores.get(entry.id) || 0;
+        scores.set(entry.id, Math.max(current, prediction.probability));
       }
     });
   });
@@ -293,7 +297,7 @@ function mapPredictionsToEcoMon(predictions) {
     return null;
   }
 
-  return { mon, confidence: Math.round(bestScore * 100) };
+  return { mon, confidence: Math.round(Math.min(1, bestScore) * 100) };
 }
 
 function confirmDeposit() {

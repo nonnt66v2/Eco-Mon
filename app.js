@@ -1,0 +1,314 @@
+const ECO_MONS = [
+  {
+    id: "pet",
+    name: "PET-Dragon",
+    material: "Plastica (PET)",
+    bin: "GIALLO",
+    color: "#fbbf24",
+    description: "Bottiglie e flaconi in plastica trasparente."
+  },
+  {
+    id: "paper",
+    name: "Carta-Kong",
+    material: "Carta",
+    bin: "BLU",
+    color: "#60a5fa",
+    description: "Fogli, cartoncini e giornali puliti."
+  },
+  {
+    id: "tetra",
+    name: "Tetra-Fox",
+    material: "Tetrapak",
+    bin: "GIALLO",
+    color: "#f59e0b",
+    description: "Cartoni per bevande e succhi."
+  },
+  {
+    id: "glass",
+    name: "Vetro-Lumaca",
+    material: "Vetro",
+    bin: "VERDE",
+    color: "#22c55e",
+    description: "Bottiglie e vasetti in vetro."
+  },
+  {
+    id: "organic",
+    name: "Bio-Fungus",
+    material: "Organico",
+    bin: "MARRONE",
+    color: "#a16207",
+    description: "Scarti di cibo, bucce, fondi di caffè."
+  },
+  {
+    id: "metal",
+    name: "Alu-Rex",
+    material: "Alluminio",
+    bin: "GIALLO",
+    color: "#94a3b8",
+    description: "Lattine, scatolette e piccoli metalli."
+  }
+];
+
+const MAX_DAILY_SCANS = 3;
+const STORAGE_KEY = "ecomon-state";
+
+const elements = {
+  status: document.getElementById("onlineStatus"),
+  cameraFeed: document.getElementById("cameraFeed"),
+  startCamera: document.getElementById("startCamera"),
+  materialSelect: document.getElementById("materialSelect"),
+  analyzeBtn: document.getElementById("analyzeBtn"),
+  confirmBtn: document.getElementById("confirmBtn"),
+  resultText: document.getElementById("resultText"),
+  resultBin: document.getElementById("resultBin"),
+  dailyLimit: document.getElementById("dailyLimit"),
+  pokedex: document.getElementById("pokedexGrid"),
+  progressBar: document.getElementById("progressBar"),
+  toast: document.getElementById("toast"),
+  modal: document.getElementById("cardModal"),
+  modalCard: document.getElementById("modalCard"),
+  closeModal: document.getElementById("closeModal")
+};
+
+let currentRecognition = null;
+let cameraStream = null;
+
+const state = loadState();
+resetIfNewDay();
+
+bootstrap();
+
+function bootstrap() {
+  registerServiceWorker();
+  populateMaterials();
+  renderPokedex();
+  updateDailyLimit();
+  updateProgress();
+  updateOnlineStatus();
+
+  elements.startCamera.addEventListener("click", startCamera);
+  elements.analyzeBtn.addEventListener("click", simulateRecognition);
+  elements.confirmBtn.addEventListener("click", confirmDeposit);
+  elements.closeModal.addEventListener("click", closeModal);
+  elements.modal.addEventListener("click", (event) => {
+    if (event.target === elements.modal) {
+      closeModal();
+    }
+  });
+
+  window.addEventListener("online", updateOnlineStatus);
+  window.addEventListener("offline", updateOnlineStatus);
+}
+
+function registerServiceWorker() {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js").catch(() => {
+      showToast("Service worker non disponibile.");
+    });
+  }
+}
+
+function populateMaterials() {
+  ECO_MONS.forEach((mon) => {
+    const option = document.createElement("option");
+    option.value = mon.id;
+    option.textContent = `${mon.material} · ${mon.name}`;
+    elements.materialSelect.appendChild(option);
+  });
+}
+
+function startCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showToast("La fotocamera non è supportata su questo dispositivo.");
+    return;
+  }
+
+  navigator.mediaDevices
+    .getUserMedia({ video: { facingMode: "environment" } })
+    .then((stream) => {
+      cameraStream = stream;
+      elements.cameraFeed.srcObject = stream;
+      showToast("Fotocamera attiva. Inquadra il rifiuto!");
+    })
+    .catch(() => {
+      showToast("Accesso alla fotocamera negato.");
+    });
+}
+
+function simulateRecognition() {
+  resetIfNewDay();
+  const selectedId = elements.materialSelect.value;
+  if (!selectedId) {
+    showToast("Seleziona un materiale da riconoscere.");
+    return;
+  }
+
+  const mon = ECO_MONS.find((item) => item.id === selectedId);
+  currentRecognition = mon;
+  elements.resultText.textContent = `${mon.material} · ${mon.name}`;
+  elements.resultBin.textContent = `Bidone ${mon.bin}`;
+  showToast(`Rilevato: ${mon.material}.`);
+}
+
+function confirmDeposit() {
+  resetIfNewDay();
+  if (!currentRecognition) {
+    showToast("Nessun rifiuto riconosciuto. Premi Analizza.");
+    return;
+  }
+
+  if (state.todayScans >= MAX_DAILY_SCANS) {
+    showToast("Limite giornaliero raggiunto. Torna domani!");
+    return;
+  }
+
+  if (state.todayCollected.includes(currentRecognition.id)) {
+    showToast("Hai già salvato questo Eco-Mon oggi! Cerca altri materiali.");
+    return;
+  }
+
+  state.todayScans += 1;
+  state.todayCollected.push(currentRecognition.id);
+  state.unlocked[currentRecognition.id] = true;
+  saveState();
+
+  renderPokedex();
+  updateDailyLimit();
+  updateProgress();
+  launchConfetti();
+  openModal(currentRecognition);
+}
+
+function renderPokedex() {
+  elements.pokedex.innerHTML = "";
+  ECO_MONS.forEach((mon) => {
+    const card = document.createElement("div");
+    const isUnlocked = Boolean(state.unlocked[mon.id]);
+    card.className = `pokedex-card ${isUnlocked ? "" : "locked"}`;
+
+    card.innerHTML = `
+      <strong>${isUnlocked ? mon.name : "???"}</strong>
+      <span class="badge">${mon.material}</span>
+      <p>${isUnlocked ? mon.description : "Sblocca questo Eco-Mon con una scansione."}</p>
+      <span class="badge">Bidone ${mon.bin}</span>
+    `;
+
+    card.style.borderColor = isUnlocked ? `${mon.color}55` : "rgba(148, 163, 184, 0.2)";
+    card.style.background = isUnlocked
+      ? `linear-gradient(135deg, ${mon.color}22, rgba(15, 23, 42, 0.95))`
+      : "rgba(15, 23, 42, 0.9)";
+
+    elements.pokedex.appendChild(card);
+  });
+}
+
+function updateDailyLimit() {
+  elements.dailyLimit.textContent = `Scansioni di oggi: ${state.todayScans}/${MAX_DAILY_SCANS}`;
+}
+
+function updateProgress() {
+  const unlockedCount = Object.values(state.unlocked).filter(Boolean).length;
+  const percentage = Math.min(100, (unlockedCount / ECO_MONS.length) * 100);
+  elements.progressBar.style.width = `${percentage}%`;
+}
+
+function loadState() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    return createDefaultState();
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      lastDate: parsed.lastDate || getToday(),
+      todayScans: Number(parsed.todayScans) || 0,
+      todayCollected: Array.isArray(parsed.todayCollected) ? parsed.todayCollected : [],
+      unlocked: parsed.unlocked && typeof parsed.unlocked === "object" ? parsed.unlocked : {}
+    };
+  } catch (error) {
+    return createDefaultState();
+  }
+}
+
+function createDefaultState() {
+  return {
+    lastDate: getToday(),
+    todayScans: 0,
+    todayCollected: [],
+    unlocked: {}
+  };
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function resetIfNewDay() {
+  const today = getToday();
+  if (state.lastDate !== today) {
+    state.lastDate = today;
+    state.todayScans = 0;
+    state.todayCollected = [];
+    saveState();
+  }
+}
+
+function getToday() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function showToast(message) {
+  elements.toast.textContent = message;
+  elements.toast.classList.add("show");
+  clearTimeout(elements.toast.dataset.timeout);
+
+  const timeout = setTimeout(() => {
+    elements.toast.classList.remove("show");
+  }, 2400);
+
+  elements.toast.dataset.timeout = timeout;
+}
+
+function launchConfetti() {
+  const colors = ["#22c55e", "#f97316", "#38bdf8", "#facc15", "#f472b6"];
+  for (let i = 0; i < 32; i += 1) {
+    const piece = document.createElement("div");
+    piece.className = "confetti";
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.background = colors[i % colors.length];
+    piece.style.animationDelay = `${Math.random() * 0.2}s`;
+    piece.style.transform = `translateY(-20px) rotate(${Math.random() * 360}deg)`;
+    document.body.appendChild(piece);
+
+    piece.addEventListener("animationend", () => {
+      piece.remove();
+    });
+  }
+}
+
+function openModal(mon) {
+  elements.modalCard.innerHTML = `
+    <h3>${mon.name}</h3>
+    <p>${mon.description}</p>
+    <span class="badge">Materiale: ${mon.material}</span>
+    <span class="badge">Bidone: ${mon.bin}</span>
+  `;
+  elements.modal.setAttribute("aria-hidden", "false");
+}
+
+function closeModal() {
+  elements.modal.setAttribute("aria-hidden", "true");
+}
+
+function updateOnlineStatus() {
+  const isOnline = navigator.onLine;
+  elements.status.textContent = isOnline ? "Online" : "Offline";
+  elements.status.style.color = isOnline ? "#22c55e" : "#f87171";
+}
+
+window.addEventListener("beforeunload", () => {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach((track) => track.stop());
+  }
+});

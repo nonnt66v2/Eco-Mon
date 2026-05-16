@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>EcoMon: Throw Them All!</title>
+    <meta
+      name="description"
+      content="EcoMon trasforma la raccolta differenziata in una caccia al tesoro con mostri da collezionare."
+    />
+    <meta name="theme-color" content="#22c55e" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" href="icons/icon-192.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/icon-512.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <p class="eyebrow">PWA · Edge AI · Gamification</p>
+        <h1>EcoMon: Throw Them All!</h1>
+        <p>
+          Scansiona un rifiuto, scopri il bidone giusto e colleziona il tuo Eco-Mon. Ogni gesto corretto
+          salva il pianeta e sblocca nuovi mostriciattoli.
+        </p>
+      </div>
+      <div class="status" id="onlineStatus">Offline</div>
+    </header>
+
+    <main>
+      <section class="card scanner">
+        <div class="card-header">
+          <div>
+            <h2>Scanner EcoMon</h2>
+            <p>Inquadra il rifiuto, premi “Analizza” e poi “Fatto!”.</p>
+          </div>
+          <div class="limit" id="dailyLimit">Scansioni di oggi: 0/3</div>
+        </div>
+
+        <div class="scanner-grid">
+          <div class="camera">
+            <video id="cameraFeed" autoplay muted playsinline></video>
+            <div class="camera-overlay">
+              <span>Fotocamera pronta</span>
+            </div>
+          </div>
+          <div class="controls">
+            <button class="primary" id="startCamera">Attiva fotocamera</button>
+            <label class="field">
+              <span>Simula riconoscimento</span>
+              <select id="materialSelect">
+                <option value="">Seleziona materiale...</option>
+              </select>
+            </label>
+            <button class="secondary" id="analyzeBtn">Analizza</button>
+            <button class="primary" id="confirmBtn">Fatto!</button>
+            <p class="hint">
+              Suggerimento: puoi usare l’app anche senza fotocamera per una demo in classe.
+            </p>
+          </div>
+        </div>
+
+        <div class="result" id="scanResult">
+          <span class="label">Rilevato:</span>
+          <strong id="resultText">In attesa di analisi…</strong>
+          <span class="bin" id="resultBin">—</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Anti-cheat &amp; progressi</h2>
+        <ul class="rules">
+          <li>Massimo 3 rifiuti scannerizzabili al giorno.</li>
+          <li>Lo stesso materiale non vale due volte nella stessa giornata.</li>
+          <li>I tuoi Eco-Mon restano nel Pokedex per sempre.</li>
+        </ul>
+        <div class="progress">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Pokedex Eco-Mon</h2>
+        <p>Completa la collezione salvando più materiali possibili.</p>
+        <div class="pokedex" id="pokedexGrid"></div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="modal" id="cardModal" aria-hidden="true">
+      <div class="modal-content">
+        <button class="close" id="closeModal" aria-label="Chiudi">×</button>
+        <div class="modal-card" id="modalCard"></div>
+      </div>
+    </div>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

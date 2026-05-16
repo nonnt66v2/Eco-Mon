@@ -51,15 +51,61 @@ const ECO_MONS = [
 
 const MAX_DAILY_SCANS = 3;
 const STORAGE_KEY = "ecomon-state";
+const AI_MIN_CONFIDENCE = 0.4;
+const AI_KEYWORDS = [
+  {
+    id: "pet",
+    keywords: ["plastic bottle", "water bottle", "soda bottle", "pop bottle", "detergent bottle"]
+  },
+  {
+    id: "paper",
+    keywords: ["paper", "newspaper", "book", "notebook", "cardboard", "envelope", "carton box"]
+  },
+  {
+    id: "tetra",
+    keywords: ["milk carton", "juice carton", "tetra", "drink carton", "beverage carton"]
+  },
+  {
+    id: "glass",
+    keywords: ["glass bottle", "wine bottle", "beer bottle", "jar", "vase"]
+  },
+  {
+    id: "organic",
+    keywords: ["banana", "apple", "orange", "vegetable", "salad", "sandwich", "pizza", "mushroom"]
+  },
+  {
+    id: "metal",
+    keywords: ["soda can", "beer can", "tin can", "aluminum", "steel", "metal can"]
+  }
+];
+const AI_KEYWORD_WORDS = new Map();
+const AI_KEYWORD_PHRASES = [];
+
+AI_KEYWORDS.forEach((hint) => {
+  hint.keywords.forEach((keyword) => {
+    const normalized = keyword.toLowerCase();
+    if (normalized.includes(" ")) {
+      const escaped = normalized.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
+      AI_KEYWORD_PHRASES.push({ id: hint.id, regex: new RegExp(`\\b${escaped}\\b`) });
+      return;
+    }
+
+    if (!AI_KEYWORD_WORDS.has(normalized)) {
+      AI_KEYWORD_WORDS.set(normalized, new Set());
+    }
+    AI_KEYWORD_WORDS.get(normalized).add(hint.id);
+  });
+});
 
 const elements = {
   status: document.getElementById("onlineStatus"),
   cameraFeed: document.getElementById("cameraFeed"),
   startCamera: document.getElementById("startCamera"),
-  materialSelect: document.getElementById("materialSelect"),
+  aiStatus: document.getElementById("aiStatus"),
   analyzeBtn: document.getElementById("analyzeBtn"),
   confirmBtn: document.getElementById("confirmBtn"),
   resultText: document.getElementById("resultText"),
+  resultConfidence: document.getElementById("resultConfidence"),
   resultBin: document.getElementById("resultBin"),
   dailyLimit: document.getElementById("dailyLimit"),
   pokedex: document.getElementById("pokedexGrid"),
@@ -72,6 +118,9 @@ const elements = {
 
 let currentRecognition = null;
 let cameraStream = null;
+let aiModel = null;
+let aiModelPromise = null;
+let captureCanvas = null;
 
 const state = loadState();
 resetIfNewDay();
@@ -80,14 +129,14 @@ bootstrap();
 
 function bootstrap() {
   registerServiceWorker();
-  populateMaterials();
   renderPokedex();
   updateDailyLimit();
   updateProgress();
   updateOnlineStatus();
+  setAiStatus("AI pronta a iniziare. Attiva la fotocamera.");
 
   elements.startCamera.addEventListener("click", startCamera);
-  elements.analyzeBtn.addEventListener("click", simulateRecognition);
+  elements.analyzeBtn.addEventListener("click", recognizeWaste);
   elements.confirmBtn.addEventListener("click", confirmDeposit);
   elements.closeModal.addEventListener("click", closeModal);
   elements.modal.addEventListener("click", (event) => {
@@ -108,13 +157,66 @@ function registerServiceWorker() {
   }
 }
 
-function populateMaterials() {
-  ECO_MONS.forEach((mon) => {
-    const option = document.createElement("option");
-    option.value = mon.id;
-    option.textContent = `${mon.material} · ${mon.name}`;
-    elements.materialSelect.appendChild(option);
-  });
+function setAiStatus(message, state) {
+  elements.aiStatus.textContent = message;
+  elements.aiStatus.classList.remove("ready", "loading", "error");
+  if (state) {
+    elements.aiStatus.classList.add(state);
+  }
+}
+
+function ensureAiModel() {
+  if (aiModel) {
+    return Promise.resolve(aiModel);
+  }
+
+  if (!window.mobilenet || !window.tf) {
+    setAiStatus("AI non disponibile. Controlla la connessione.", "error");
+    return Promise.reject(new Error("AI libraries missing"));
+  }
+
+  if (!aiModelPromise) {
+    setAiStatus("Caricamento modello AI…", "loading");
+    aiModelPromise = window.mobilenet
+      .load({ version: 2, alpha: 1.0 })
+      .then((model) => {
+        aiModel = model;
+        setAiStatus("AI pronta.", "ready");
+        return model;
+      })
+      .catch((error) => {
+        setAiStatus("AI non disponibile. Riprova più tardi.", "error");
+        throw error;
+      });
+  }
+
+  return aiModelPromise;
+}
+
+function prepareAiModel() {
+  return ensureAiModel().catch(() => null);
+}
+
+function getCaptureCanvas() {
+  if (!captureCanvas) {
+    captureCanvas = document.createElement("canvas");
+  }
+  return captureCanvas;
+}
+
+function syncCanvasSize() {
+  const canvas = getCaptureCanvas();
+  const width = elements.cameraFeed.videoWidth;
+  const height = elements.cameraFeed.videoHeight;
+  if (!width || !height) {
+    return;
+  }
+  if (canvas.width !== width) {
+    canvas.width = width;
+  }
+  if (canvas.height !== height) {
+    canvas.height = height;
+  }
 }
 
 function startCamera() {
@@ -128,26 +230,123 @@ function startCamera() {
     .then((stream) => {
       cameraStream = stream;
       elements.cameraFeed.srcObject = stream;
+      elements.cameraFeed.addEventListener("loadedmetadata", syncCanvasSize, { once: true });
       showToast("Fotocamera attiva. Inquadra il rifiuto!");
+      prepareAiModel();
     })
     .catch(() => {
       showToast("Accesso alla fotocamera negato.");
     });
 }
 
-function simulateRecognition() {
+async function recognizeWaste() {
   resetIfNewDay();
-  const selectedId = elements.materialSelect.value;
-  if (!selectedId) {
-    showToast("Seleziona un materiale da riconoscere.");
+  if (!cameraStream) {
+    showToast("Attiva la fotocamera prima di analizzare.");
     return;
   }
 
-  const mon = ECO_MONS.find((item) => item.id === selectedId);
-  currentRecognition = mon;
-  elements.resultText.textContent = `${mon.material} · ${mon.name}`;
-  elements.resultBin.textContent = `Bidone ${mon.bin}`;
-  showToast(`Rilevato: ${mon.material}.`);
+  if (
+    elements.cameraFeed.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+    !elements.cameraFeed.videoWidth
+  ) {
+    showToast("La fotocamera non è ancora pronta. Riprova tra poco.");
+    return;
+  }
+
+  elements.resultText.textContent = "Analisi in corso…";
+  elements.resultConfidence.textContent = "Confidenza AI: —";
+  elements.resultBin.textContent = "—";
+
+  let model;
+  try {
+    model = await ensureAiModel();
+  } catch (error) {
+    showToast("Modello AI non disponibile.");
+    return;
+  }
+
+  const canvas = getCaptureCanvas();
+  syncCanvasSize();
+  if (!canvas.width || !canvas.height) {
+    showToast("La fotocamera non è ancora pronta. Riprova tra poco.");
+    return;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(elements.cameraFeed, 0, 0, canvas.width, canvas.height);
+
+  let predictions = [];
+  try {
+    predictions = await model.classify(canvas, 5);
+  } catch (error) {
+    showToast("Errore durante il riconoscimento.");
+    return;
+  }
+  const match = mapPredictionsToEcoMon(predictions);
+
+  if (!match) {
+    currentRecognition = null;
+    elements.resultText.textContent = "Nessun rifiuto riconosciuto.";
+    elements.resultConfidence.textContent = "Confidenza AI: bassa";
+    elements.resultBin.textContent = "—";
+    showToast("L’AI non ha riconosciuto il materiale.");
+    return;
+  }
+
+  currentRecognition = match.mon;
+  elements.resultText.textContent = `${match.mon.material} · ${match.mon.name}`;
+  elements.resultConfidence.textContent = `Confidenza AI: ${match.confidence}%`;
+  elements.resultBin.textContent = `Bidone ${match.mon.bin}`;
+  showToast(`Rilevato: ${match.mon.material}.`);
+}
+
+function mapPredictionsToEcoMon(predictions) {
+  const scores = new Map();
+  predictions.forEach((prediction) => {
+    const label = prediction.className.toLowerCase();
+    const words = label.split(/[^a-zà-ÿ0-9]+/).filter(Boolean);
+    words.forEach((word) => {
+      const ids = AI_KEYWORD_WORDS.get(word);
+      if (!ids) {
+        return;
+      }
+      ids.forEach((id) => {
+        const current = scores.get(id) || 0;
+        scores.set(id, Math.max(current, prediction.probability));
+      });
+    });
+
+    AI_KEYWORD_PHRASES.forEach((entry) => {
+      if (entry.regex.test(label)) {
+        const current = scores.get(entry.id) || 0;
+        scores.set(entry.id, Math.max(current, prediction.probability));
+      }
+    });
+  });
+
+  if (!scores.size) {
+    return null;
+  }
+
+  let bestId = null;
+  let bestScore = 0;
+  scores.forEach((score, id) => {
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = id;
+    }
+  });
+
+  if (!bestId || bestScore < AI_MIN_CONFIDENCE) {
+    return null;
+  }
+
+  const mon = ECO_MONS.find((item) => item.id === bestId);
+  if (!mon) {
+    return null;
+  }
+
+  return { mon, confidence: Math.round(bestScore * 100) };
 }
 
 function confirmDeposit() {

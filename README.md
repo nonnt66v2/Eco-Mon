@@ -5,7 +5,7 @@ Il bambino inquadra un rifiuto, l’app suggerisce il bidone giusto e sblocca un
 
 ## Funzionalità demo
 
-- Scanner PWA con fotocamera (fallback demo con selezione manuale del materiale).
+- Scanner PWA con fotocamera e riconoscimento AI on-device.
 - Anti-cheat: massimo 3 rifiuti al giorno e blocco duplicati giornalieri.
 - Pokedex persistente via `localStorage`.
 - Modalità offline con service worker.
@@ -21,5 +21,5 @@ Apri l’URL indicato dal server (es. `http://localhost:3000`).
 
 ## Note
 
-- L’intelligenza artificiale è simulata con una selezione manuale per facilitare la demo.
+- L’intelligenza artificiale usa un modello MobileNet nel browser per riconoscere il materiale.
 - Per la presentazione, attiva la fotocamera e usa “Analizza” + “Fatto!” per mostrare il flusso completo.

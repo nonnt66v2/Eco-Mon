@@ -32,7 +32,7 @@
         <div class="card-header">
           <div>
             <h2>Scanner EcoMon</h2>
-            <p>Inquadra il rifiuto, premi “Analizza” e poi “Fatto!”.</p>
+            <p>Inquadra il rifiuto, premi “Analizza” per l’AI e poi “Fatto!”.</p>
           </div>
           <div class="limit" id="dailyLimit">Scansioni di oggi: 0/3</div>
         </div>
@@ -46,16 +46,11 @@
           </div>
           <div class="controls">
             <button class="primary" id="startCamera">Attiva fotocamera</button>
-            <label class="field">
-              <span>Simula riconoscimento</span>
-              <select id="materialSelect">
-                <option value="">Seleziona materiale...</option>
-              </select>
-            </label>
+            <div class="ai-status" id="aiStatus">AI: in attesa di attivazione.</div>
             <button class="secondary" id="analyzeBtn">Analizza</button>
             <button class="primary" id="confirmBtn">Fatto!</button>
             <p class="hint">
-              Suggerimento: puoi usare l’app anche senza fotocamera per una demo in classe.
+              Suggerimento: illumina bene l’oggetto per aiutare il riconoscimento.
             </p>
           </div>
         </div>
@@ -63,6 +58,7 @@
         <div class="result" id="scanResult">
           <span class="label">Rilevato:</span>
           <strong id="resultText">In attesa di analisi…</strong>
+          <span class="confidence" id="resultConfidence">Confidenza AI: —</span>
           <span class="bin" id="resultBin">—</span>
         </div>
       </section>
@@ -95,6 +91,8 @@
       </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0"></script>
     <script src="app.js" defer></script>
   </body>
 </html>

@@ -24,3 +24,4 @@ Apri l’URL indicato dal server (es. `http://localhost:3000`).
 - L’intelligenza artificiale usa un modello MobileNet nel browser per riconoscere il materiale.
 - Il tipo di rifiuto non è selezionabile manualmente: viene assegnato solo dal riconoscimento AI.
 - Per la presentazione, attiva la fotocamera e usa “Analizza” + “Fatto!” per mostrare il flusso completo.
+- Su smartphone la webcam richiede HTTPS (oppure `localhost`): se non disponibile, l’app apre automaticamente lo scatto/caricamento foto come fallback.

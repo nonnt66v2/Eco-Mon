@@ -52,6 +52,11 @@ const ECO_MONS = [
 const MAX_DAILY_SCANS = 3;
 const STORAGE_KEY = "ecomon-state";
 const AI_MIN_CONFIDENCE = 0.4;
+const CAMERA_CONSTRAINTS = [
+  { video: { facingMode: { ideal: "environment" } } },
+  { video: { facingMode: "environment" } },
+  { video: true }
+];
 const AI_KEYWORDS = [
   {
     id: "pet",
@@ -121,6 +126,9 @@ let cameraStream = null;
 let aiModel = null;
 let aiModelPromise = null;
 let captureCanvas = null;
+let fallbackInput = null;
+let selectedImage = null;
+let selectedImageUrl = "";
 
 const state = loadState();
 resetIfNewDay();
@@ -227,41 +235,163 @@ function syncCanvasSize() {
   }
 }
 
-function startCamera() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    showToast("La fotocamera non è supportata su questo dispositivo.");
+function stopCameraStream() {
+  if (!cameraStream) {
+    return;
+  }
+  cameraStream.getTracks().forEach((track) => track.stop());
+  cameraStream = null;
+}
+
+function ensureFallbackInput() {
+  if (fallbackInput) {
+    return fallbackInput;
+  }
+
+  fallbackInput = document.createElement("input");
+  fallbackInput.type = "file";
+  fallbackInput.accept = "image/*";
+  fallbackInput.setAttribute("capture", "environment");
+  fallbackInput.style.display = "none";
+  fallbackInput.addEventListener("change", handleFallbackSelection);
+  document.body.appendChild(fallbackInput);
+  return fallbackInput;
+}
+
+function resetSelectedImage() {
+  selectedImage = null;
+  if (selectedImageUrl) {
+    URL.revokeObjectURL(selectedImageUrl);
+    selectedImageUrl = "";
+  }
+  elements.cameraFeed.removeAttribute("poster");
+}
+
+async function handleFallbackSelection(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) {
     return;
   }
 
-  navigator.mediaDevices
-    .getUserMedia({ video: { facingMode: "environment" } })
-    .then((stream) => {
-      cameraStream = stream;
-      elements.cameraFeed.srcObject = stream;
-      elements.cameraFeed.addEventListener("loadedmetadata", syncCanvasSize, { once: true });
-      currentRecognition = null;
-      setConfirmButtonEnabled(false);
-      elements.resultText.textContent = "In attesa di analisi…";
-      elements.resultConfidence.textContent = "Confidenza AI: —";
-      elements.resultBin.textContent = "—";
-      showToast("Fotocamera attiva. Inquadra il rifiuto!");
-      prepareAiModel();
-    })
-    .catch(() => {
-      showToast("Accesso alla fotocamera negato.");
-    });
+  try {
+    const { image, objectUrl } = await loadImageFromFile(file);
+    stopCameraStream();
+    if (selectedImageUrl) {
+      URL.revokeObjectURL(selectedImageUrl);
+    }
+    selectedImage = image;
+    selectedImageUrl = objectUrl;
+    elements.cameraFeed.srcObject = null;
+    elements.cameraFeed.removeAttribute("src");
+    elements.cameraFeed.load();
+    elements.cameraFeed.setAttribute("poster", objectUrl);
+    currentRecognition = null;
+    setConfirmButtonEnabled(false);
+    elements.resultText.textContent = "In attesa di analisi…";
+    elements.resultConfidence.textContent = "Confidenza AI: —";
+    elements.resultBin.textContent = "—";
+    showToast("Foto caricata. Premi Analizza.");
+    prepareAiModel();
+  } catch (error) {
+    showToast("Immagine non valida. Riprova.");
+  }
+}
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      resolve({ image, objectUrl });
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Invalid image"));
+    };
+    image.src = objectUrl;
+  });
+}
+
+function requestFallbackCapture() {
+  const input = ensureFallbackInput();
+  input.click();
+}
+
+async function requestCameraStream() {
+  let lastError = null;
+  for (const constraints of CAMERA_CONSTRAINTS) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (error) {
+      lastError = error;
+      if (error?.name === "NotAllowedError" || error?.name === "SecurityError") {
+        break;
+      }
+    }
+  }
+  throw lastError || new Error("Camera unavailable");
+}
+
+function getCameraErrorMessage(error) {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    if (!window.isSecureContext) {
+      return "Fotocamera web non disponibile: usa HTTPS oppure scatta/carica una foto.";
+    }
+    return "Fotocamera web non disponibile: scatta/carica una foto.";
+  }
+
+  if (error?.name === "NotAllowedError" || error?.name === "SecurityError") {
+    return "Accesso alla fotocamera negato. Puoi comunque scattare/caricare una foto.";
+  }
+  if (error?.name === "NotFoundError" || error?.name === "OverconstrainedError") {
+    return "Nessuna camera posteriore disponibile. Usa scatta/carica foto.";
+  }
+  if (error?.name === "NotReadableError") {
+    return "Fotocamera occupata da un’altra app. Usa scatta/carica foto.";
+  }
+  return "Impossibile avviare la fotocamera. Usa scatta/carica foto.";
+}
+
+async function startCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showToast(getCameraErrorMessage(null));
+    requestFallbackCapture();
+    return;
+  }
+
+  try {
+    const stream = await requestCameraStream();
+    stopCameraStream();
+    resetSelectedImage();
+    cameraStream = stream;
+    elements.cameraFeed.srcObject = stream;
+    elements.cameraFeed.addEventListener("loadedmetadata", syncCanvasSize, { once: true });
+    elements.cameraFeed.play().catch(() => {});
+    currentRecognition = null;
+    setConfirmButtonEnabled(false);
+    elements.resultText.textContent = "In attesa di analisi…";
+    elements.resultConfidence.textContent = "Confidenza AI: —";
+    elements.resultBin.textContent = "—";
+    showToast("Fotocamera attiva. Inquadra il rifiuto!");
+    prepareAiModel();
+  } catch (error) {
+    showToast(getCameraErrorMessage(error));
+    requestFallbackCapture();
+  }
 }
 
 async function recognizeWaste() {
   resetIfNewDay();
-  if (!cameraStream) {
-    showToast("Attiva la fotocamera prima di analizzare.");
+  if (!cameraStream && !selectedImage) {
+    showToast("Attiva la fotocamera o scatta/carica una foto prima di analizzare.");
     return;
   }
 
   if (
+    cameraStream &&
     elements.cameraFeed.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
-    !elements.cameraFeed.videoWidth
+    (cameraStream && !elements.cameraFeed.videoWidth)
   ) {
     showToast("La fotocamera non è ancora pronta. Riprova tra poco.");
     return;
@@ -282,13 +412,22 @@ async function recognizeWaste() {
   }
 
   const canvas = getCaptureCanvas();
-  syncCanvasSize();
+  if (cameraStream) {
+    syncCanvasSize();
+  } else {
+    canvas.width = selectedImage.naturalWidth;
+    canvas.height = selectedImage.naturalHeight;
+  }
   if (!canvas.width || !canvas.height) {
     showToast("La fotocamera non è ancora pronta. Riprova tra poco.");
     return;
   }
   const ctx = canvas.getContext("2d");
-  ctx.drawImage(elements.cameraFeed, 0, 0, canvas.width, canvas.height);
+  if (cameraStream) {
+    ctx.drawImage(elements.cameraFeed, 0, 0, canvas.width, canvas.height);
+  } else {
+    ctx.drawImage(selectedImage, 0, 0, canvas.width, canvas.height);
+  }
 
   let predictions = [];
   try {
@@ -526,7 +665,8 @@ function updateOnlineStatus() {
 }
 
 window.addEventListener("beforeunload", () => {
-  if (cameraStream) {
-    cameraStream.getTracks().forEach((track) => track.stop());
+  stopCameraStream();
+  if (selectedImageUrl) {
+    URL.revokeObjectURL(selectedImageUrl);
   }
 });

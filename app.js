@@ -85,7 +85,7 @@ AI_KEYWORDS.forEach((hint) => {
   hint.keywords.forEach((keyword) => {
     const normalized = keyword.toLowerCase();
     if (normalized.includes(" ")) {
-      const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const escaped = normalized.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
       AI_KEYWORD_PHRASES.push({ id: hint.id, regex: new RegExp(`\\b${escaped}\\b`) });
       return;
     }
@@ -304,7 +304,7 @@ function mapPredictionsToEcoMon(predictions) {
   const scores = new Map();
   predictions.forEach((prediction) => {
     const label = prediction.className.toLowerCase();
-    const words = label.split(/[^a-zà-ÿ0-9]+/i).filter(Boolean);
+    const words = label.split(/[^a-zà-ÿ0-9]+/).filter(Boolean);
     words.forEach((word) => {
       const ids = AI_KEYWORD_WORDS.get(word);
       if (!ids) {

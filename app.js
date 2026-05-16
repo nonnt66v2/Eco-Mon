@@ -51,7 +51,7 @@ const ECO_MONS = [
 
 const MAX_DAILY_SCANS = 3;
 const STORAGE_KEY = "ecomon-state";
-const AI_MIN_CONFIDENCE = 0.2;
+const AI_MIN_CONFIDENCE = 0.3;
 const AI_KEYWORDS = [
   {
     id: "pet",
@@ -232,7 +232,7 @@ async function recognizeWaste() {
   const canvas = getCaptureCanvas();
   canvas.width = elements.cameraFeed.videoWidth;
   canvas.height = elements.cameraFeed.videoHeight;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const ctx = canvas.getContext("2d");
   ctx.drawImage(elements.cameraFeed, 0, 0, canvas.width, canvas.height);
 
   let predictions = [];

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="EcoMon icon">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#16a34a" />
+      <stop offset="1" stop-color="#22c55e" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)" />
+  <circle cx="256" cy="256" r="150" fill="#0f172a" opacity="0.15" />
+  <path d="M256 132c44 0 80 36 80 80 0 44-36 80-80 80-44 0-80-36-80-80 0-44 36-80 80-80z" fill="#fef9c3" />
+  <path d="M152 312c34-18 69-28 104-28s70 10 104 28" fill="none" stroke="#fef9c3" stroke-width="32" stroke-linecap="round" />
+  <text x="256" y="430" text-anchor="middle" font-size="64" font-family="'Trebuchet MS', sans-serif" fill="#fef9c3">EcoMon</text>
+</svg>

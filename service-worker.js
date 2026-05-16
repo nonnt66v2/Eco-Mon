@@ -1,4 +1,4 @@
-const CACHE_NAME = "ecomon-cache-v1";
+const CACHE_NAME = "ecomon-cache-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const ASSETS = [
   "./icons/icon-512.svg",
   "./icons/maskable.svg"
 ];
+const NETWORK_FIRST_PATHS = new Set(["/", "/index.html", "/styles.css", "/app.js"]);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
@@ -29,6 +30,35 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const url = new URL(event.request.url);
+  const useNetworkFirst =
+    event.request.mode === "navigate" || NETWORK_FIRST_PATHS.has(url.pathname);
+
+  if (useNetworkFirst) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200 && response.type === "basic") {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          }
+          return response;
+        })
+        .catch(() =>
+          caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            if (event.request.mode === "navigate") {
+              return caches.match("./index.html");
+            }
+            return caches.match("./");
+          })
+        )
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -43,12 +73,7 @@ self.addEventListener("fetch", (event) => {
           }
           return response;
         })
-        .catch(() => {
-          if (event.request.mode === "navigate") {
-            return caches.match("./index.html");
-          }
-          return caches.match("./");
-        });
+        .catch(() => caches.match("./"));
     })
   );
 });

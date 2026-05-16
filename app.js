@@ -133,6 +133,7 @@ function bootstrap() {
   updateDailyLimit();
   updateProgress();
   updateOnlineStatus();
+  setConfirmButtonEnabled(false);
   setAiStatus("AI pronta a iniziare. Attiva la fotocamera.");
 
   elements.startCamera.addEventListener("click", startCamera);
@@ -151,9 +152,12 @@ function bootstrap() {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("service-worker.js").catch(() => {
-      showToast("Service worker non disponibile.");
-    });
+    navigator.serviceWorker
+      .register("service-worker.js")
+      .then((registration) => registration.update())
+      .catch(() => {
+        showToast("Service worker non disponibile.");
+      });
   }
 }
 
@@ -163,6 +167,10 @@ function setAiStatus(message, state) {
   if (state) {
     elements.aiStatus.classList.add(state);
   }
+}
+
+function setConfirmButtonEnabled(enabled) {
+  elements.confirmBtn.disabled = !enabled;
 }
 
 function ensureAiModel() {
@@ -231,6 +239,11 @@ function startCamera() {
       cameraStream = stream;
       elements.cameraFeed.srcObject = stream;
       elements.cameraFeed.addEventListener("loadedmetadata", syncCanvasSize, { once: true });
+      currentRecognition = null;
+      setConfirmButtonEnabled(false);
+      elements.resultText.textContent = "In attesa di analisi…";
+      elements.resultConfidence.textContent = "Confidenza AI: —";
+      elements.resultBin.textContent = "—";
       showToast("Fotocamera attiva. Inquadra il rifiuto!");
       prepareAiModel();
     })
@@ -254,6 +267,8 @@ async function recognizeWaste() {
     return;
   }
 
+  currentRecognition = null;
+  setConfirmButtonEnabled(false);
   elements.resultText.textContent = "Analisi in corso…";
   elements.resultConfidence.textContent = "Confidenza AI: —";
   elements.resultBin.textContent = "—";
@@ -286,6 +301,7 @@ async function recognizeWaste() {
 
   if (!match) {
     currentRecognition = null;
+    setConfirmButtonEnabled(false);
     elements.resultText.textContent = "Nessun rifiuto riconosciuto.";
     elements.resultConfidence.textContent = "Confidenza AI: bassa";
     elements.resultBin.textContent = "—";
@@ -294,6 +310,7 @@ async function recognizeWaste() {
   }
 
   currentRecognition = match.mon;
+  setConfirmButtonEnabled(true);
   elements.resultText.textContent = `${match.mon.material} · ${match.mon.name}`;
   elements.resultConfidence.textContent = `Confidenza AI: ${match.confidence}%`;
   elements.resultBin.textContent = `Bidone ${match.mon.bin}`;
@@ -370,6 +387,8 @@ function confirmDeposit() {
   state.todayCollected.push(currentRecognition.id);
   state.unlocked[currentRecognition.id] = true;
   saveState();
+  currentRecognition = null;
+  setConfirmButtonEnabled(false);
 
   renderPokedex();
   updateDailyLimit();

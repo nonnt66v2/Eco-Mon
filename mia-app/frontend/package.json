@@ -7,9 +7,9 @@
     "react-dom": "^19.2.6"
   },
   "scripts": {
-    "dev": "vite --host",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "../node_modules/.bin/vite --host",
+    "build": "../node_modules/.bin/vite build",
+    "preview": "../node_modules/.bin/vite preview"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.4",

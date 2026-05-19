@@ -1,85 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '../style/App.css';
-
-const ECO_MONS = [
-  { id: "pet", name: "PET-Dragon", material: "Plastica (PET)", bin: "GIALLO", color: "#fbbf24", description: "Bottiglie e flaconi in plastica trasparente." },
-  { id: "paper", name: "Carta-Kong", material: "Carta", bin: "BLU", color: "#60a5fa", description: "Fogli, cartoncini e giornali puliti." },
-  { id: "tetra", name: "Tetra-Fox", material: "Tetrapak", bin: "GIALLO", color: "#f59e0b", description: "Cartoni per bevande e succhi." },
-  { id: "glass", name: "Vetro-Lumaca", material: "Vetro", bin: "VERDE", color: "#22c55e", description: "Bottiglie e vasetti in vetro." },
-  { id: "organic", name: "Bio-Fungus", material: "Organico", bin: "MARRONE", color: "#a16207", description: "Scarti di cibo, bucce, fondi di caffè." },
-  { id: "metal", name: "Alu-Rex", material: "Alluminio", bin: "GIALLO", color: "#94a3b8", description: "Lattine, scatolette e piccoli metalli." }
-];
-
-const MAX_DAILY_SCANS = 100;
-const STORAGE_KEY = "ecomon-state";
-const AI_MIN_CONFIDENCE = 0.4;
-const AUTO_SCAN_INTERVAL_MS = 1000;
-const NO_DETECTION_RESET_MS = 10000;
-const CAMERA_CONSTRAINTS = [
-  { video: { facingMode: { ideal: "environment" } } },
-  { video: { facingMode: "environment" } },
-  { video: true }
-];
-
-const AI_KEYWORDS = [
-  { id: "pet", keywords: ["plastic bottle", "water bottle", "soda bottle", "pop bottle", "detergent bottle"] },
-  { id: "paper", keywords: ["paper", "newspaper", "book", "notebook", "cardboard", "envelope", "carton box"] },
-  { id: "tetra", keywords: ["milk carton", "juice carton", "tetra", "drink carton", "beverage carton"] },
-  { id: "glass", keywords: ["glass bottle", "wine bottle", "beer bottle", "jar", "vase"] },
-  { id: "organic", keywords: ["banana", "apple", "orange", "vegetable", "salad", "sandwich", "pizza", "mushroom"] },
-  { id: "metal", keywords: ["soda can", "beer can", "tin can", "aluminum", "steel", "metal can"] }
-];
-
-function buildAiKeywordMaps() {
-  const wordMap = new Map();
-  const phraseList = [];
-
-  AI_KEYWORDS.forEach((hint) => {
-    hint.keywords.forEach((keyword) => {
-      const normalized = keyword.toLowerCase();
-      if (normalized.includes(" ")) {
-        const escaped = normalized.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
-        phraseList.push({ id: hint.id, regex: new RegExp(`\\b${escaped}\\b`) });
-        return;
-      }
-      if (!wordMap.has(normalized)) {
-        wordMap.set(normalized, new Set());
-      }
-      wordMap.get(normalized).add(hint.id);
-    });
-  });
-
-  return { wordMap, phraseList };
-}
-
-function getToday() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function createDefaultState() {
-  return { lastDate: getToday(), todayScans: 0, todayCollected: [], unlocked: {} };
-}
-
-function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return createDefaultState();
-
-  try {
-    const parsed = JSON.parse(raw);
-    return {
-      lastDate: parsed.lastDate || getToday(),
-      todayScans: Number(parsed.todayScans) || 0,
-      todayCollected: Array.isArray(parsed.todayCollected) ? parsed.todayCollected : [],
-      unlocked: parsed.unlocked && typeof parsed.unlocked === "object" ? parsed.unlocked : {}
-    };
-  } catch {
-    return createDefaultState();
-  }
-}
-
-function saveState(state) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
+import HomeSection from './components/HomeSection';
+import ScannerSection from './components/ScannerSection';
+import PokedexSection from './components/PokedexSection';
+import BottomNav from './components/BottomNav';
+import ToastMessage from './components/ToastMessage';
+import RewardModal from './components/RewardModal';
+import {
+  AI_MIN_CONFIDENCE,
+  AUTO_SCAN_INTERVAL_MS,
+  CAMERA_CONSTRAINTS,
+  ECO_MONS,
+  MAX_DAILY_SCANS,
+  NO_DETECTION_RESET_MS,
+  STORAGE_KEY
+} from './components/ecomonData';
+import {
+  buildAiKeywordMaps,
+  createDefaultState,
+  getToday,
+  loadState,
+  saveState
+} from './components/stateUtils';
 
 function App() {
   const { wordMap: AI_KEYWORD_WORDS, phraseList: AI_KEYWORD_PHRASES } = useMemo(buildAiKeywordMaps, []);
@@ -621,134 +563,44 @@ function App() {
     <>
       <div className="app-shell">
         <div className="carousel" ref={carouselRef} aria-label="Sezioni EcoMon">
-          <section className="panel home-panel" data-section="home" ref={(element) => { sectionRefs.current.home = element; }}>
-            <div className="home-hero card">
-              <div>
-                <p className="eyebrow">PWA · Edge AI · Gamification</p>
-                <h1>EcoMon: Throw Them All!</h1>
-                <p>
-                  Scansiona un rifiuto, scopri il bidone giusto e colleziona il tuo Eco-Mon. Ogni gesto corretto
-                  salva il pianeta e sblocca nuovi mostriciattoli.
-                </p>
-              </div>
-              <div className="status" id="onlineStatus" style={{ color: online ? "#22c55e" : "#f87171" }}>
-                {online ? "Online" : "Offline"}
-              </div>
-            </div>
+          <HomeSection
+            online={online}
+            progressPercent={progressPercent}
+            maxDailyScans={MAX_DAILY_SCANS}
+            todayScans={state.todayScans}
+            sectionRef={(element) => { sectionRefs.current.home = element; }}
+          />
 
-            <section className="card">
-              <h2>Anti-cheat &amp; progressi</h2>
-              <ul className="rules">
-                <li>Massimo 3 rifiuti scannerizzabili al giorno.</li>
-                <li>Lo stesso materiale non vale due volte nella stessa giornata.</li>
-                <li>I tuoi Eco-Mon restano nel Pokedex per sempre.</li>
-              </ul>
-              <div className="progress">
-                <div className="progress-bar" id="progressBar" style={{ width: `${progressPercent}%` }}></div>
-              </div>
-            </section>
-          </section>
+          <ScannerSection
+            sectionRef={(element) => { sectionRefs.current.scan = element; }}
+            cameraFeedRef={cameraFeedRef}
+            startCamera={startCamera}
+            aiStatus={aiStatus}
+            confirmDeposit={confirmDeposit}
+            confirmEnabled={confirmEnabled}
+            resetDebugData={resetDebugData}
+            resultText={resultText}
+            resultConfidence={resultConfidence}
+            resultBin={resultBin}
+          />
 
-          <section className="panel scan-panel" data-section="scan" ref={(element) => { sectionRefs.current.scan = element; }}>
-            <section className="card scanner">
-              <div className="card-header">
-                <div>
-                  <h2>Scanner EcoMon</h2>
-                  <p>Inquadra il rifiuto: con la fotocamera attiva la scansione parte in automatico, poi premi “Fatto!”.</p>
-                </div>
-                <div className="limit" id="dailyLimit">Scansioni di oggi: {state.todayScans}/{MAX_DAILY_SCANS}</div>
-              </div>
-
-              <div className="scanner-grid">
-                <div className="camera">
-                  <video ref={cameraFeedRef} id="cameraFeed" autoPlay muted playsInline></video>
-                  <div className="camera-overlay">
-                    <span>Fotocamera pronta</span>
-                  </div>
-                </div>
-                <div className="controls">
-                  <button className="primary" id="startCamera" onClick={startCamera}>Attiva fotocamera</button>
-                  <div className={`ai-status ${aiStatus.state}`} id="aiStatus">{aiStatus.message}</div>
-                  <button className="primary" id="confirmBtn" onClick={confirmDeposit} disabled={!confirmEnabled}>Fatto!</button>
-                  <button className="debug" id="debugResetBtn" onClick={resetDebugData}>Reset dati locali (debug)</button>
-                  <p className="hint">Suggerimento: illumina bene l’oggetto. La fotocamera continua a scandire mentre resta attiva.</p>
-                </div>
-              </div>
-
-              <div className="result" id="scanResult">
-                <span className="label">Rilevato:</span>
-                <strong id="resultText">{resultText}</strong>
-                <span className="confidence" id="resultConfidence">{resultConfidence}</span>
-                <span className="bin" id="resultBin">{resultBin}</span>
-              </div>
-            </section>
-          </section>
-
-          <section className="panel dex-panel" data-section="dex" ref={(element) => { sectionRefs.current.dex = element; }}>
-            <section className="card">
-              <h2>Pokedex Eco-Mon</h2>
-              <p>Completa la collezione salvando più materiali possibili.</p>
-              <div className="pokedex" id="pokedexGrid">
-                {ECO_MONS.map((mon) => {
-                  const isUnlocked = Boolean(state.unlocked[mon.id]);
-                  return (
-                    <div
-                      key={mon.id}
-                      className={`pokedex-card ${isUnlocked ? "" : "locked"}`}
-                      style={{
-                        borderColor: isUnlocked ? `${mon.color}55` : "rgba(148, 163, 184, 0.2)",
-                        background: isUnlocked
-                          ? `linear-gradient(135deg, ${mon.color}22, rgba(15, 23, 42, 0.95))`
-                          : "rgba(15, 23, 42, 0.9)"
-                      }}
-                    >
-                      <strong>{isUnlocked ? mon.name : "???"}</strong>
-                      <span className="badge">{mon.material}</span>
-                      <p>{isUnlocked ? mon.description : "Sblocca questo Eco-Mon con una scansione."}</p>
-                      <span className="badge">Bidone {mon.bin}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          </section>
+          <PokedexSection
+            sectionRef={(element) => { sectionRefs.current.dex = element; }}
+            ecoMons={ECO_MONS}
+            unlocked={state.unlocked}
+          />
         </div>
 
-        <nav className="bottom-nav" aria-label="Navigazione sezioni">
-          <button className={`nav-item ${activeSection === "home" ? "active" : ""}`} onClick={() => scrollToSection("home")} type="button">
-            <span className="nav-icon">⌂</span>
-            <span className="nav-label">Home</span>
-          </button>
-          <button className={`nav-item nav-item--scan ${activeSection === "scan" ? "active" : ""}`} onClick={() => scrollToSection("scan")} type="button">
-            <span className="nav-icon">◉</span>
-            <span className="nav-label">Scan</span>
-          </button>
-          <button className={`nav-item ${activeSection === "dex" ? "active" : ""}`} onClick={() => scrollToSection("dex")} type="button">
-            <span className="nav-icon">≣</span>
-            <span className="nav-label">Eco-Dex</span>
-          </button>
-        </nav>
+        <BottomNav activeSection={activeSection} onNavigate={scrollToSection} />
       </div>
 
-      <div className={`toast ${toast ? "show" : ""}`} id="toast">{toast}</div>
+      <ToastMessage toast={toast} />
 
-      <div className="modal" id="cardModal" aria-hidden={!modalOpen} onClick={(e) => {
-        if (e.target.id === "cardModal") setModalOpen(false);
-      }}>
-        <div className="modal-content">
-          <button className="close" id="closeModal" aria-label="Chiudi" onClick={() => setModalOpen(false)}>×</button>
-          <div className="modal-card" id="modalCard">
-            {modalMon && (
-              <>
-                <h3>{modalMon.name}</h3>
-                <p>{modalMon.description}</p>
-                <span className="badge">Materiale: {modalMon.material}</span>
-                <span className="badge">Bidone: {modalMon.bin}</span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+      <RewardModal
+        modalOpen={modalOpen}
+        modalMon={modalMon}
+        onClose={() => setModalOpen(false)}
+      />
     </>
   );
 }

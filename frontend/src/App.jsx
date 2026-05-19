@@ -14,6 +14,7 @@ const MAX_DAILY_SCANS = 3;
 const STORAGE_KEY = "ecomon-state";
 const AI_MIN_CONFIDENCE = 0.4;
 const AUTO_SCAN_INTERVAL_MS = 1000;
+const NO_DETECTION_RESET_MS = 10000;
 const CAMERA_CONSTRAINTS = [
   { video: { facingMode: { ideal: "environment" } } },
   { video: { facingMode: "environment" } },
@@ -107,6 +108,7 @@ function App() {
   const selectedImageRef = useRef(null);
   const selectedImageUrlRef = useRef("");
   const recognitionInProgressRef = useRef(false);
+  const lastDetectionAtRef = useRef(0);
 
   const showToast = useCallback((message) => {
     setToast(message);
@@ -259,6 +261,7 @@ function App() {
       }
 
       currentRecognitionRef.current = null;
+      lastDetectionAtRef.current = 0;
       setConfirmEnabled(false);
       setResultText("In attesa di analisi…");
       setResultConfidence("Confidenza AI: —");
@@ -342,6 +345,7 @@ function App() {
       }
 
       currentRecognitionRef.current = null;
+      lastDetectionAtRef.current = 0;
       setConfirmEnabled(false);
       setResultText("In attesa di analisi…");
       setResultConfidence("Confidenza AI: —");
@@ -459,7 +463,20 @@ function App() {
 
       const match = mapPredictionsToEcoMon(predictions);
       if (!match) {
-        if (previousTypeId !== null) return;
+        if (previousTypeId !== null) {
+          const now = Date.now();
+          const elapsed = now - lastDetectionAtRef.current;
+          if (elapsed < NO_DETECTION_RESET_MS) return;
+
+          currentRecognitionRef.current = null;
+          lastDetectionAtRef.current = 0;
+          setConfirmEnabled(false);
+          setResultText("Nessun rifiuto riconosciuto.");
+          setResultConfidence("Confidenza AI: bassa");
+          setResultBin("—");
+          if (!fromAutoScan) showToast("L’AI non ha riconosciuto il materiale.");
+          return;
+        }
 
         setConfirmEnabled(false);
         setResultText("Nessun rifiuto riconosciuto.");
@@ -472,6 +489,7 @@ function App() {
       const nextTypeId = match.mon.id;
       if (previousTypeId === nextTypeId) return;
 
+      lastDetectionAtRef.current = Date.now();
       currentRecognitionRef.current = match.mon;
       setConfirmEnabled(true);
       setResultText(`${match.mon.material} · ${match.mon.name}`);

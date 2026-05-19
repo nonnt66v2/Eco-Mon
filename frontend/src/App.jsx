@@ -13,6 +13,7 @@ const ECO_MONS = [
 const MAX_DAILY_SCANS = 3;
 const STORAGE_KEY = "ecomon-state";
 const AI_MIN_CONFIDENCE = 0.4;
+const AUTO_SCAN_INTERVAL_MS = 1000;
 const CAMERA_CONSTRAINTS = [
   { video: { facingMode: { ideal: "environment" } } },
   { video: { facingMode: "environment" } },
@@ -91,6 +92,7 @@ function App() {
   const [resultText, setResultText] = useState("In attesa di analisi…");
   const [resultConfidence, setResultConfidence] = useState("Confidenza AI: —");
   const [resultBin, setResultBin] = useState("—");
+  const [cameraActive, setCameraActive] = useState(false);
   const [toast, setToast] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
 
@@ -104,6 +106,7 @@ function App() {
   const aiModelPromiseRef = useRef(null);
   const selectedImageRef = useRef(null);
   const selectedImageUrlRef = useRef("");
+  const recognitionInProgressRef = useRef(false);
 
   const showToast = useCallback((message) => {
     setToast(message);
@@ -240,6 +243,7 @@ function App() {
     try {
       const { image, objectUrl } = await loadImageFromFile(file);
       stopCameraStream();
+      setCameraActive(false);
       if (selectedImageUrlRef.current) {
         URL.revokeObjectURL(selectedImageUrlRef.current);
       }
@@ -329,6 +333,7 @@ function App() {
       resetSelectedImage();
 
       cameraStreamRef.current = stream;
+      setCameraActive(true);
       const video = cameraFeedRef.current;
       if (video) {
         video.srcObject = stream;
@@ -392,79 +397,104 @@ function App() {
     return { mon, confidence: Math.round(bestScore * 100) };
   }, [AI_KEYWORD_PHRASES, AI_KEYWORD_WORDS]);
 
-  const recognizeWaste = useCallback(async () => {
-    setState((prev) => resetIfNewDay(prev));
+  const recognizeWaste = useCallback(async (fromAutoScan = false) => {
+    if (recognitionInProgressRef.current) return;
+    recognitionInProgressRef.current = true;
 
-    if (!cameraStreamRef.current && !selectedImageRef.current) {
-      showToast("Attiva la fotocamera o scatta/carica una foto prima di analizzare.");
-      return;
-    }
-
-    const video = cameraFeedRef.current;
-    if (cameraStreamRef.current && (video?.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video?.videoWidth)) {
-      showToast("La fotocamera non è ancora pronta. Riprova tra poco.");
-      return;
-    }
-
-    currentRecognitionRef.current = null;
-    setConfirmEnabled(false);
-    setResultText("Analisi in corso…");
-    setResultConfidence("Confidenza AI: —");
-    setResultBin("—");
-
-    let model;
     try {
-      model = await ensureAiModel();
-    } catch {
-      showToast("Modello AI non disponibile.");
-      return;
-    }
+      setState((prev) => resetIfNewDay(prev));
 
-    const canvas = getCaptureCanvas();
-    if (cameraStreamRef.current) {
-      syncCanvasSize();
-    } else {
-      canvas.width = selectedImageRef.current.naturalWidth;
-      canvas.height = selectedImageRef.current.naturalHeight;
-    }
-    if (!canvas.width || !canvas.height) {
-      showToast("La fotocamera non è ancora pronta. Riprova tra poco.");
-      return;
-    }
+      if (!cameraStreamRef.current && !selectedImageRef.current) {
+        if (!fromAutoScan) showToast("Attiva la fotocamera o scatta/carica una foto prima di analizzare.");
+        return;
+      }
 
-    const ctx = canvas.getContext("2d");
-    if (cameraStreamRef.current) {
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    } else {
-      ctx.drawImage(selectedImageRef.current, 0, 0, canvas.width, canvas.height);
-    }
+      const video = cameraFeedRef.current;
+      if (cameraStreamRef.current && (video?.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video?.videoWidth)) {
+        if (!fromAutoScan) showToast("La fotocamera non è ancora pronta. Riprova tra poco.");
+        return;
+      }
 
-    let predictions = [];
-    try {
-      predictions = await model.classify(canvas, 5);
-    } catch {
-      showToast("Errore durante il riconoscimento.");
-      return;
-    }
-
-    const match = mapPredictionsToEcoMon(predictions);
-    if (!match) {
       currentRecognitionRef.current = null;
       setConfirmEnabled(false);
-      setResultText("Nessun rifiuto riconosciuto.");
-      setResultConfidence("Confidenza AI: bassa");
+      setResultText("Analisi in corso…");
+      setResultConfidence("Confidenza AI: —");
       setResultBin("—");
-      showToast("L’AI non ha riconosciuto il materiale.");
-      return;
-    }
 
-    currentRecognitionRef.current = match.mon;
-    setConfirmEnabled(true);
-    setResultText(`${match.mon.material} · ${match.mon.name}`);
-    setResultConfidence(`Confidenza AI: ${match.confidence}%`);
-    setResultBin(`Bidone ${match.mon.bin}`);
-    showToast(`Rilevato: ${match.mon.material}.`);
+      let model;
+      try {
+        model = await ensureAiModel();
+      } catch {
+        if (!fromAutoScan) showToast("Modello AI non disponibile.");
+        return;
+      }
+
+      const canvas = getCaptureCanvas();
+      if (cameraStreamRef.current) {
+        syncCanvasSize();
+      } else {
+        canvas.width = selectedImageRef.current.naturalWidth;
+        canvas.height = selectedImageRef.current.naturalHeight;
+      }
+      if (!canvas.width || !canvas.height) {
+        if (!fromAutoScan) showToast("La fotocamera non è ancora pronta. Riprova tra poco.");
+        return;
+      }
+
+      const ctx = canvas.getContext("2d");
+      if (cameraStreamRef.current) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.drawImage(selectedImageRef.current, 0, 0, canvas.width, canvas.height);
+      }
+
+      let predictions = [];
+      try {
+        predictions = await model.classify(canvas, 5);
+      } catch {
+        if (!fromAutoScan) showToast("Errore durante il riconoscimento.");
+        return;
+      }
+
+      const match = mapPredictionsToEcoMon(predictions);
+      if (!match) {
+        currentRecognitionRef.current = null;
+        setConfirmEnabled(false);
+        setResultText("Nessun rifiuto riconosciuto.");
+        setResultConfidence("Confidenza AI: bassa");
+        setResultBin("—");
+        if (!fromAutoScan) showToast("L’AI non ha riconosciuto il materiale.");
+        return;
+      }
+
+      const previousRecognition = currentRecognitionRef.current;
+      currentRecognitionRef.current = match.mon;
+      setConfirmEnabled(true);
+      setResultText(`${match.mon.material} · ${match.mon.name}`);
+      setResultConfidence(`Confidenza AI: ${match.confidence}%`);
+      setResultBin(`Bidone ${match.mon.bin}`);
+      if (!fromAutoScan || !previousRecognition || previousRecognition.id !== match.mon.id) {
+        showToast(`Rilevato: ${match.mon.material}.`);
+      }
+    } finally {
+      recognitionInProgressRef.current = false;
+    }
   }, [ensureAiModel, getCaptureCanvas, mapPredictionsToEcoMon, resetIfNewDay, showToast, syncCanvasSize]);
+
+  useEffect(() => {
+    if (!cameraActive) return undefined;
+
+    const runAutoScan = () => {
+      void recognizeWaste(true);
+    };
+
+    runAutoScan();
+    const intervalId = window.setInterval(runAutoScan, AUTO_SCAN_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [cameraActive, recognizeWaste]);
 
   const confirmDeposit = useCallback(() => {
     setState((prev) => {
@@ -524,7 +554,7 @@ function App() {
           <div className="card-header">
             <div>
               <h2>Scanner EcoMon</h2>
-              <p>Inquadra il rifiuto, premi “Analizza” per il riconoscimento AI e poi “Fatto!”.</p>
+              <p>Inquadra il rifiuto: con la fotocamera attiva la scansione parte in automatico, poi premi “Fatto!”.</p>
             </div>
             <div className="limit" id="dailyLimit">Scansioni di oggi: {state.todayScans}/{MAX_DAILY_SCANS}</div>
           </div>
@@ -541,7 +571,7 @@ function App() {
               <div className={`ai-status ${aiStatus.state}`} id="aiStatus">{aiStatus.message}</div>
               <button className="secondary" id="analyzeBtn" onClick={recognizeWaste}>Analizza</button>
               <button className="primary" id="confirmBtn" onClick={confirmDeposit} disabled={!confirmEnabled}>Fatto!</button>
-              <p className="hint">Suggerimento: illumina bene l’oggetto per aiutare il riconoscimento.</p>
+              <p className="hint">Suggerimento: illumina bene l’oggetto. La fotocamera continua a scandire mentre resta attiva.</p>
             </div>
           </div>
 

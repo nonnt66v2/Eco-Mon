@@ -37,6 +37,7 @@ body {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  -ms-overflow-style: none;
   min-height: 0;
 }
 
@@ -52,6 +53,12 @@ body {
   overflow-y: auto;
   scroll-snap-align: start;
   scroll-snap-stop: always;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.panel::-webkit-scrollbar {
+  display: none;
 }
 
 .home-panel,

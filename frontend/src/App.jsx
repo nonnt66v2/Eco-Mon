@@ -83,10 +83,13 @@ function saveState(state) {
 
 function App() {
   const { wordMap: AI_KEYWORD_WORDS, phraseList: AI_KEYWORD_PHRASES } = useMemo(buildAiKeywordMaps, []);
+  const sectionOrder = useMemo(() => ["home", "scan", "dex"], []);
 
   const cameraFeedRef = useRef(null);
   const captureCanvasRef = useRef(null);
   const fallbackInputRef = useRef(null);
+  const carouselRef = useRef(null);
+  const sectionRefs = useRef({});
 
   const [aiStatus, setAiStatus] = useState({ message: "AI pronta a iniziare. Attiva la fotocamera.", state: "" });
   const [confirmEnabled, setConfirmEnabled] = useState(false);
@@ -100,6 +103,7 @@ function App() {
   const [state, setState] = useState(loadState);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMon, setModalMon] = useState(null);
+  const [activeSection, setActiveSection] = useState("home");
 
   const currentRecognitionRef = useRef(null);
   const cameraStreamRef = useRef(null);
@@ -155,6 +159,31 @@ function App() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const root = carouselRef.current;
+    if (!root) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visibleEntry = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+
+        if (visibleEntry?.target?.dataset?.section) {
+          setActiveSection(visibleEntry.target.dataset.section);
+        }
+      },
+      { root, threshold: [0.45, 0.6, 0.8] }
+    );
+
+    sectionOrder.forEach((sectionId) => {
+      const element = sectionRefs.current[sectionId];
+      if (element) observer.observe(element);
+    });
+
+    return () => observer.disconnect();
+  }, [sectionOrder]);
 
   const setAiStatusState = useCallback((message, stateClass = "") => {
     setAiStatus({ message, state: stateClass });
@@ -550,6 +579,13 @@ function App() {
     });
   }, [resetIfNewDay, showToast]);
 
+  const scrollToSection = useCallback((sectionId) => {
+    const section = sectionRefs.current[sectionId];
+    if (!section) return;
+    setActiveSection(sectionId);
+    section.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+  }, []);
+
   const resetDebugData = useCallback(() => {
     const video = cameraFeedRef.current;
     stopCameraStream();
@@ -575,101 +611,124 @@ function App() {
     setModalOpen(false);
     setModalMon(null);
     showToast("Dati locali azzerati (debug).");
-  }, [resetSelectedImage, showToast, stopCameraStream]);
+    scrollToSection("home");
+  }, [resetSelectedImage, scrollToSection, showToast, stopCameraStream]);
 
   const unlockedCount = Object.values(state.unlocked).filter(Boolean).length;
   const progressPercent = Math.min(100, (unlockedCount / ECO_MONS.length) * 100);
 
   return (
     <>
-      <header className="hero">
-        <div>
-          <p className="eyebrow">PWA · Edge AI · Gamification</p>
-          <h1>EcoMon: Throw Them All!</h1>
-          <p>
-            Scansiona un rifiuto, scopri il bidone giusto e colleziona il tuo Eco-Mon. Ogni gesto corretto
-            salva il pianeta e sblocca nuovi mostriciattoli.
-          </p>
-        </div>
-        <div className="status" id="onlineStatus" style={{ color: online ? "#22c55e" : "#f87171" }}>
-          {online ? "Online" : "Offline"}
-        </div>
-      </header>
-
-      <main>
-        <section className="card scanner">
-          <div className="card-header">
-            <div>
-              <h2>Scanner EcoMon</h2>
-              <p>Inquadra il rifiuto: con la fotocamera attiva la scansione parte in automatico, poi premi “Fatto!”.</p>
-            </div>
-            <div className="limit" id="dailyLimit">Scansioni di oggi: {state.todayScans}/{MAX_DAILY_SCANS}</div>
-          </div>
-
-          <div className="scanner-grid">
-            <div className="camera">
-              <video ref={cameraFeedRef} id="cameraFeed" autoPlay muted playsInline></video>
-              <div className="camera-overlay">
-                <span>Fotocamera pronta</span>
+      <div className="app-shell">
+        <div className="carousel" ref={carouselRef} aria-label="Sezioni EcoMon">
+          <section className="panel home-panel" data-section="home" ref={(element) => { sectionRefs.current.home = element; }}>
+            <div className="home-hero card">
+              <div>
+                <p className="eyebrow">PWA · Edge AI · Gamification</p>
+                <h1>EcoMon: Throw Them All!</h1>
+                <p>
+                  Scansiona un rifiuto, scopri il bidone giusto e colleziona il tuo Eco-Mon. Ogni gesto corretto
+                  salva il pianeta e sblocca nuovi mostriciattoli.
+                </p>
+              </div>
+              <div className="status" id="onlineStatus" style={{ color: online ? "#22c55e" : "#f87171" }}>
+                {online ? "Online" : "Offline"}
               </div>
             </div>
-            <div className="controls">
-              <button className="primary" id="startCamera" onClick={startCamera}>Attiva fotocamera</button>
-              <div className={`ai-status ${aiStatus.state}`} id="aiStatus">{aiStatus.message}</div>
-              <button className="secondary" id="analyzeBtn" onClick={recognizeWaste}>Analizza</button>
-              <button className="primary" id="confirmBtn" onClick={confirmDeposit} disabled={!confirmEnabled}>Fatto!</button>
-              <button className="debug" id="debugResetBtn" onClick={resetDebugData}>Reset dati locali (debug)</button>
-              <p className="hint">Suggerimento: illumina bene l’oggetto. La fotocamera continua a scandire mentre resta attiva.</p>
-            </div>
-          </div>
 
-          <div className="result" id="scanResult">
-            <span className="label">Rilevato:</span>
-            <strong id="resultText">{resultText}</strong>
-            <span className="confidence" id="resultConfidence">{resultConfidence}</span>
-            <span className="bin" id="resultBin">{resultBin}</span>
-          </div>
-        </section>
+            <section className="card">
+              <h2>Anti-cheat &amp; progressi</h2>
+              <ul className="rules">
+                <li>Massimo 3 rifiuti scannerizzabili al giorno.</li>
+                <li>Lo stesso materiale non vale due volte nella stessa giornata.</li>
+                <li>I tuoi Eco-Mon restano nel Pokedex per sempre.</li>
+              </ul>
+              <div className="progress">
+                <div className="progress-bar" id="progressBar" style={{ width: `${progressPercent}%` }}></div>
+              </div>
+            </section>
+          </section>
 
-        <section className="card">
-          <h2>Anti-cheat &amp; progressi</h2>
-          <ul className="rules">
-            <li>Massimo 3 rifiuti scannerizzabili al giorno.</li>
-            <li>Lo stesso materiale non vale due volte nella stessa giornata.</li>
-            <li>I tuoi Eco-Mon restano nel Pokedex per sempre.</li>
-          </ul>
-          <div className="progress">
-            <div className="progress-bar" id="progressBar" style={{ width: `${progressPercent}%` }}></div>
-          </div>
-        </section>
-
-        <section className="card">
-          <h2>Pokedex Eco-Mon</h2>
-          <p>Completa la collezione salvando più materiali possibili.</p>
-          <div className="pokedex" id="pokedexGrid">
-            {ECO_MONS.map((mon) => {
-              const isUnlocked = Boolean(state.unlocked[mon.id]);
-              return (
-                <div
-                  key={mon.id}
-                  className={`pokedex-card ${isUnlocked ? "" : "locked"}`}
-                  style={{
-                    borderColor: isUnlocked ? `${mon.color}55` : "rgba(148, 163, 184, 0.2)",
-                    background: isUnlocked
-                      ? `linear-gradient(135deg, ${mon.color}22, rgba(15, 23, 42, 0.95))`
-                      : "rgba(15, 23, 42, 0.9)"
-                  }}
-                >
-                  <strong>{isUnlocked ? mon.name : "???"}</strong>
-                  <span className="badge">{mon.material}</span>
-                  <p>{isUnlocked ? mon.description : "Sblocca questo Eco-Mon con una scansione."}</p>
-                  <span className="badge">Bidone {mon.bin}</span>
+          <section className="panel scan-panel" data-section="scan" ref={(element) => { sectionRefs.current.scan = element; }}>
+            <section className="card scanner">
+              <div className="card-header">
+                <div>
+                  <h2>Scanner EcoMon</h2>
+                  <p>Inquadra il rifiuto: con la fotocamera attiva la scansione parte in automatico, poi premi “Fatto!”.</p>
                 </div>
-              );
-            })}
-          </div>
-        </section>
-      </main>
+                <div className="limit" id="dailyLimit">Scansioni di oggi: {state.todayScans}/{MAX_DAILY_SCANS}</div>
+              </div>
+
+              <div className="scanner-grid">
+                <div className="camera">
+                  <video ref={cameraFeedRef} id="cameraFeed" autoPlay muted playsInline></video>
+                  <div className="camera-overlay">
+                    <span>Fotocamera pronta</span>
+                  </div>
+                </div>
+                <div className="controls">
+                  <button className="primary" id="startCamera" onClick={startCamera}>Attiva fotocamera</button>
+                  <div className={`ai-status ${aiStatus.state}`} id="aiStatus">{aiStatus.message}</div>
+                  <button className="primary" id="confirmBtn" onClick={confirmDeposit} disabled={!confirmEnabled}>Fatto!</button>
+                  <button className="debug" id="debugResetBtn" onClick={resetDebugData}>Reset dati locali (debug)</button>
+                  <p className="hint">Suggerimento: illumina bene l’oggetto. La fotocamera continua a scandire mentre resta attiva.</p>
+                </div>
+              </div>
+
+              <div className="result" id="scanResult">
+                <span className="label">Rilevato:</span>
+                <strong id="resultText">{resultText}</strong>
+                <span className="confidence" id="resultConfidence">{resultConfidence}</span>
+                <span className="bin" id="resultBin">{resultBin}</span>
+              </div>
+            </section>
+          </section>
+
+          <section className="panel dex-panel" data-section="dex" ref={(element) => { sectionRefs.current.dex = element; }}>
+            <section className="card">
+              <h2>Pokedex Eco-Mon</h2>
+              <p>Completa la collezione salvando più materiali possibili.</p>
+              <div className="pokedex" id="pokedexGrid">
+                {ECO_MONS.map((mon) => {
+                  const isUnlocked = Boolean(state.unlocked[mon.id]);
+                  return (
+                    <div
+                      key={mon.id}
+                      className={`pokedex-card ${isUnlocked ? "" : "locked"}`}
+                      style={{
+                        borderColor: isUnlocked ? `${mon.color}55` : "rgba(148, 163, 184, 0.2)",
+                        background: isUnlocked
+                          ? `linear-gradient(135deg, ${mon.color}22, rgba(15, 23, 42, 0.95))`
+                          : "rgba(15, 23, 42, 0.9)"
+                      }}
+                    >
+                      <strong>{isUnlocked ? mon.name : "???"}</strong>
+                      <span className="badge">{mon.material}</span>
+                      <p>{isUnlocked ? mon.description : "Sblocca questo Eco-Mon con una scansione."}</p>
+                      <span className="badge">Bidone {mon.bin}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </section>
+        </div>
+
+        <nav className="bottom-nav" aria-label="Navigazione sezioni">
+          <button className={`nav-item ${activeSection === "home" ? "active" : ""}`} onClick={() => scrollToSection("home")} type="button">
+            <span className="nav-icon">⌂</span>
+            <span className="nav-label">Home</span>
+          </button>
+          <button className={`nav-item nav-item--scan ${activeSection === "scan" ? "active" : ""}`} onClick={() => scrollToSection("scan")} type="button">
+            <span className="nav-icon">◉</span>
+            <span className="nav-label">Scan</span>
+          </button>
+          <button className={`nav-item ${activeSection === "dex" ? "active" : ""}`} onClick={() => scrollToSection("dex")} type="button">
+            <span className="nav-icon">≣</span>
+            <span className="nav-label">Eco-Dex</span>
+          </button>
+        </nav>
+      </div>
 
       <div className={`toast ${toast ? "show" : ""}`} id="toast">{toast}</div>
 

@@ -1,4 +1,4 @@
-import { AI_KEYWORDS, STORAGE_KEY } from "./ecomonData";
+import { AI_KEYWORDS, STORAGE_KEY } from "../constants/ecomonData";
 
 export function buildAiKeywordMaps() {
   const wordMap = new Map();

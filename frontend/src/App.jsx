@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '../style/App.css';
-import HomeSection from './components/HomeSection';
-import ScannerSection from './components/ScannerSection';
-import PokedexSection from './components/PokedexSection';
-import BottomNav from './components/BottomNav';
-import ToastMessage from './components/ToastMessage';
-import RewardModal from './components/RewardModal';
+import HomeSection from './components/sections/HomeSection';
+import ScannerSection from './components/sections/ScannerSection';
+import PokedexSection from './components/sections/PokedexSection';
+import BottomNav from './components/navigation/BottomNav';
+import ToastMessage from './components/feedback/ToastMessage';
+import RewardModal from './components/feedback/RewardModal';
 import {
   AI_MIN_CONFIDENCE,
   AUTO_SCAN_INTERVAL_MS,
@@ -14,14 +14,14 @@ import {
   MAX_DAILY_SCANS,
   NO_DETECTION_RESET_MS,
   STORAGE_KEY
-} from './components/ecomonData';
+} from './constants/ecomonData';
 import {
   buildAiKeywordMaps,
   createDefaultState,
   getToday,
   loadState,
   saveState
-} from './components/stateUtils';
+} from './utils/stateUtils';
 
 function App() {
   const { wordMap: AI_KEYWORD_WORDS, phraseList: AI_KEYWORD_PHRASES } = useMemo(buildAiKeywordMaps, []);

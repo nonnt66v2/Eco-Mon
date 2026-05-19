@@ -13,6 +13,7 @@ Il bambino inquadra un rifiuto, l’app suggerisce il bidone giusto e sblocca un
 ## Avvio locale
 
 ```bash
+cd frontend
 npm install
 npm run start
 ```

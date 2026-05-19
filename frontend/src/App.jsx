@@ -10,7 +10,7 @@ const ECO_MONS = [
   { id: "metal", name: "Alu-Rex", material: "Alluminio", bin: "GIALLO", color: "#94a3b8", description: "Lattine, scatolette e piccoli metalli." }
 ];
 
-const MAX_DAILY_SCANS = 3;
+const MAX_DAILY_SCANS = 100;
 const STORAGE_KEY = "ecomon-state";
 const AI_MIN_CONFIDENCE = 0.4;
 const AUTO_SCAN_INTERVAL_MS = 1000;
@@ -550,6 +550,33 @@ function App() {
     });
   }, [resetIfNewDay, showToast]);
 
+  const resetDebugData = useCallback(() => {
+    const video = cameraFeedRef.current;
+    stopCameraStream();
+    setCameraActive(false);
+    resetSelectedImage();
+    if (video) {
+      video.srcObject = null;
+      video.removeAttribute("src");
+      video.load();
+    }
+
+    const freshState = createDefaultState();
+    localStorage.removeItem(STORAGE_KEY);
+    saveState(freshState);
+
+    setState(freshState);
+    currentRecognitionRef.current = null;
+    lastDetectionAtRef.current = 0;
+    setConfirmEnabled(false);
+    setResultText("In attesa di analisi…");
+    setResultConfidence("Confidenza AI: —");
+    setResultBin("—");
+    setModalOpen(false);
+    setModalMon(null);
+    showToast("Dati locali azzerati (debug).");
+  }, [resetSelectedImage, showToast, stopCameraStream]);
+
   const unlockedCount = Object.values(state.unlocked).filter(Boolean).length;
   const progressPercent = Math.min(100, (unlockedCount / ECO_MONS.length) * 100);
 
@@ -591,6 +618,7 @@ function App() {
               <div className={`ai-status ${aiStatus.state}`} id="aiStatus">{aiStatus.message}</div>
               <button className="secondary" id="analyzeBtn" onClick={recognizeWaste}>Analizza</button>
               <button className="primary" id="confirmBtn" onClick={confirmDeposit} disabled={!confirmEnabled}>Fatto!</button>
+              <button className="debug" id="debugResetBtn" onClick={resetDebugData}>Reset dati locali (debug)</button>
               <p className="hint">Suggerimento: illumina bene l’oggetto. La fotocamera continua a scandire mentre resta attiva.</p>
             </div>
           </div>

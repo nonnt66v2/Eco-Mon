@@ -161,6 +161,12 @@ button:disabled {
   color: var(--text);
 }
 
+.debug {
+  background: rgba(248, 113, 113, 0.2);
+  color: #fecaca;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+}
+
 .field {
   display: grid;
   gap: 0.4rem;

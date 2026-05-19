@@ -415,11 +415,12 @@ function App() {
         return;
       }
 
-      currentRecognitionRef.current = null;
-      setConfirmEnabled(false);
-      setResultText("Analisi in corso…");
-      setResultConfidence("Confidenza AI: —");
-      setResultBin("—");
+      if (!fromAutoScan) {
+        setResultText("Analisi in corso…");
+      }
+
+      const previousRecognition = currentRecognitionRef.current;
+      const previousTypeId = previousRecognition?.id ?? null;
 
       let model;
       try {
@@ -458,7 +459,8 @@ function App() {
 
       const match = mapPredictionsToEcoMon(predictions);
       if (!match) {
-        currentRecognitionRef.current = null;
+        if (previousTypeId !== null) return;
+
         setConfirmEnabled(false);
         setResultText("Nessun rifiuto riconosciuto.");
         setResultConfidence("Confidenza AI: bassa");
@@ -467,15 +469,15 @@ function App() {
         return;
       }
 
-      const previousRecognition = currentRecognitionRef.current;
+      const nextTypeId = match.mon.id;
+      if (previousTypeId === nextTypeId) return;
+
       currentRecognitionRef.current = match.mon;
       setConfirmEnabled(true);
       setResultText(`${match.mon.material} · ${match.mon.name}`);
       setResultConfidence(`Confidenza AI: ${match.confidence}%`);
       setResultBin(`Bidone ${match.mon.bin}`);
-      if (!fromAutoScan || !previousRecognition || previousRecognition.id !== match.mon.id) {
-        showToast(`Rilevato: ${match.mon.material}.`);
-      }
+      showToast(`Rilevato: ${match.mon.material}.`);
     } finally {
       recognitionInProgressRef.current = false;
     }

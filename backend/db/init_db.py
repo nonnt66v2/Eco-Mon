@@ -97,19 +97,9 @@ CATEGORY_BINS = [
 
 
 ECO_MON_CARDS = [
+    # --- CARTA E CARTONE ---
     {
-        'id': 'pet',
-        'category_id': 'plastic_metals',
-        'rarity_id': 'common',
-        'name': 'PET-Dragon',
-        'material': 'Plastica (PET)',
-        'color': '#fbbf24',
-        'description': 'Bottiglie e flaconi in plastica trasparente.',
-        'keywords': ['plastic bottle', 'water bottle', 'soda bottle', 'pop bottle', 'detergent bottle'],
-        'sort_order': 1
-    },
-    {
-        'id': 'paper',
+        'id': 'paper_common',
         'category_id': 'paper_cardboard',
         'rarity_id': 'common',
         'name': 'Carta-Kong',
@@ -117,10 +107,10 @@ ECO_MON_CARDS = [
         'color': '#60a5fa',
         'description': 'Fogli, cartoncini e giornali puliti.',
         'keywords': ['paper', 'newspaper', 'book', 'notebook', 'cardboard', 'envelope', 'carton box'],
-        'sort_order': 2
+        'sort_order': 1
     },
     {
-        'id': 'tetra',
+        'id': 'paper_uncommon',
         'category_id': 'paper_cardboard',
         'rarity_id': 'uncommon',
         'name': 'Tetra-Fox',
@@ -128,32 +118,66 @@ ECO_MON_CARDS = [
         'color': '#f59e0b',
         'description': 'Cartoni per bevande e succhi.',
         'keywords': ['milk carton', 'juice carton', 'tetra', 'drink carton', 'beverage carton'],
+        'sort_order': 2
+    },
+    {
+        'id': 'paper_rare',
+        'category_id': 'paper_cardboard',
+        'rarity_id': 'rare',
+        'name': 'Scatola-Fante',
+        'material': 'Scatole di cartone',
+        'color': '#f59e0b',
+        'description': 'Scatole di cartone ondulato per imballaggi.',
+        'keywords': ['cardboard box', 'shipping box', 'corrugated', 'package box', 'moving box'],
         'sort_order': 3
     },
     {
-        'id': 'glass',
-        'category_id': 'glass',
-        'rarity_id': 'rare',
-        'name': 'Vetro-Lumaca',
-        'material': 'Vetro',
-        'color': '#22c55e',
-        'description': 'Bottiglie e vasetti in vetro.',
-        'keywords': ['glass bottle', 'wine bottle', 'beer bottle', 'jar', 'vase'],
+        'id': 'paper_epic',
+        'category_id': 'paper_cardboard',
+        'rarity_id': 'epic',
+        'name': 'Giornale-Fenice',
+        'material': 'Carta riciclata',
+        'color': '#8b5cf6',
+        'description': 'Giornali rari e riviste specializzate di qualità.',
+        'keywords': ['newspaper', 'magazine', 'journal', 'publication', 'press'],
         'sort_order': 4
     },
     {
-        'id': 'organic',
-        'category_id': 'organic',
-        'rarity_id': 'uncommon',
-        'name': 'Bio-Fungus',
-        'material': 'Organico / umido',
-        'color': '#a16207',
-        'description': 'Scarti di cibo, bucce, fondi di caffè.',
-        'keywords': ['banana', 'apple', 'orange', 'vegetable', 'salad', 'sandwich', 'pizza', 'mushroom'],
+        'id': 'paper_legendary',
+        'category_id': 'paper_cardboard',
+        'rarity_id': 'legendary',
+        'name': 'Libro-Drago',
+        'material': 'Carta pregiata',
+        'color': '#f97316',
+        'description': 'Libri antichi e rari, un tesoro di carta.',
+        'keywords': ['book', 'manuscript', 'ancient book', 'rare book', 'library book'],
         'sort_order': 5
     },
+    # --- PLASTICA E METALLI ---
     {
-        'id': 'metal',
+        'id': 'plastic_common',
+        'category_id': 'plastic_metals',
+        'rarity_id': 'common',
+        'name': 'PET-Dragon',
+        'material': 'Plastica (PET)',
+        'color': '#fbbf24',
+        'description': 'Bottiglie e flaconi in plastica trasparente.',
+        'keywords': ['plastic bottle', 'water bottle', 'soda bottle', 'pop bottle', 'detergent bottle'],
+        'sort_order': 6
+    },
+    {
+        'id': 'plastic_uncommon',
+        'category_id': 'plastic_metals',
+        'rarity_id': 'uncommon',
+        'name': 'HDPE-Tigre',
+        'material': 'Plastica (HDPE)',
+        'color': '#14b8a6',
+        'description': 'Flaconi in plastica rigida per detergenti e latte.',
+        'keywords': ['milk bottle', 'detergent', 'shampoo bottle', 'plastic jug', 'hdpe container'],
+        'sort_order': 7
+    },
+    {
+        'id': 'plastic_rare',
         'category_id': 'plastic_metals',
         'rarity_id': 'rare',
         'name': 'Alu-Rex',
@@ -161,7 +185,197 @@ ECO_MON_CARDS = [
         'color': '#94a3b8',
         'description': 'Lattine, scatolette e piccoli metalli.',
         'keywords': ['soda can', 'beer can', 'tin can', 'aluminum', 'steel', 'metal can'],
-        'sort_order': 6
+        'sort_order': 8
+    },
+    {
+        'id': 'plastic_epic',
+        'category_id': 'plastic_metals',
+        'rarity_id': 'epic',
+        'name': 'Metallo-Chimera',
+        'material': 'Acciaio inossidabile',
+        'color': '#8b5cf6',
+        'description': 'Oggetti rari in acciaio inossidabile e leghe nobili.',
+        'keywords': ['stainless steel', 'metal alloy', 'quality metal', 'steel product'],
+        'sort_order': 9
+    },
+    {
+        'id': 'plastic_legendary',
+        'category_id': 'plastic_metals',
+        'rarity_id': 'legendary',
+        'name': 'Titanio-Titano',
+        'material': 'Titanio puro',
+        'color': '#f97316',
+        'description': 'Rarissimi oggetti in titanio, il metallo dei campioni.',
+        'keywords': ['titanium', 'rare metal', 'high quality metal', 'aerospace material'],
+        'sort_order': 10
+    },
+    # --- VETRO ---
+    {
+        'id': 'glass_common',
+        'category_id': 'glass',
+        'rarity_id': 'common',
+        'name': 'Barattolo-Lumaca',
+        'material': 'Vetro',
+        'color': '#22c55e',
+        'description': 'Barattoli di vetro comune per conserve.',
+        'keywords': ['glass jar', 'preserve jar', 'storage jar', 'food container'],
+        'sort_order': 11
+    },
+    {
+        'id': 'glass_uncommon',
+        'category_id': 'glass',
+        'rarity_id': 'uncommon',
+        'name': 'Bottiglia-Serpente',
+        'material': 'Vetro trasparente',
+        'color': '#14b8a6',
+        'description': 'Bottiglie di vetro trasparente per bevande.',
+        'keywords': ['glass bottle', 'wine bottle', 'beer bottle', 'beverage bottle'],
+        'sort_order': 12
+    },
+    {
+        'id': 'glass_rare',
+        'category_id': 'glass',
+        'rarity_id': 'rare',
+        'name': 'Vetro-Aquila',
+        'material': 'Vetro colorato',
+        'color': '#f59e0b',
+        'description': 'Vetri colorati e decorativi di qualità.',
+        'keywords': ['colored glass', 'decorative glass', 'glass art', 'stained glass'],
+        'sort_order': 13
+    },
+    {
+        'id': 'glass_epic',
+        'category_id': 'glass',
+        'rarity_id': 'epic',
+        'name': 'Cristallo-Fenice',
+        'material': 'Cristallo',
+        'color': '#8b5cf6',
+        'description': 'Cristalli di alta qualità, trasparenti e brillanti.',
+        'keywords': ['crystal', 'fine glass', 'crystal clear', 'high quality glass'],
+        'sort_order': 14
+    },
+    {
+        'id': 'glass_legendary',
+        'category_id': 'glass',
+        'rarity_id': 'legendary',
+        'name': 'Diamante-Vetro',
+        'material': 'Cristallo di Boemia',
+        'color': '#f97316',
+        'description': 'Cristalli di Boemia, il massimo della perfezione vitrea.',
+        'keywords': ['bohemian crystal', 'fine crystal', 'precious glass', 'luxury glass'],
+        'sort_order': 15
+    },
+    # --- ORGANICO / UMIDO ---
+    {
+        'id': 'organic_common',
+        'category_id': 'organic',
+        'rarity_id': 'common',
+        'name': 'Bio-Fungo',
+        'material': 'Organico / umido',
+        'color': '#a16207',
+        'description': 'Scarti di cibo comuni, bucce e fondi di caffè.',
+        'keywords': ['banana', 'apple', 'orange', 'vegetable', 'salad', 'sandwich', 'pizza', 'mushroom'],
+        'sort_order': 16
+    },
+    {
+        'id': 'organic_uncommon',
+        'category_id': 'organic',
+        'rarity_id': 'uncommon',
+        'name': 'Compost-Orso',
+        'material': 'Scarti biodegradabili',
+        'color': '#14b8a6',
+        'description': 'Scarti da giardino, foglie e erba secca.',
+        'keywords': ['leaves', 'grass', 'garden waste', 'branches', 'yard waste', 'compost'],
+        'sort_order': 17
+    },
+    {
+        'id': 'organic_rare',
+        'category_id': 'organic',
+        'rarity_id': 'rare',
+        'name': 'Humus-Lince',
+        'material': 'Terriccio organico',
+        'color': '#f59e0b',
+        'description': 'Humus ricco di sostanze organiche e micronutrienti.',
+        'keywords': ['humus', 'soil', 'rich soil', 'organic matter', 'earth'],
+        'sort_order': 18
+    },
+    {
+        'id': 'organic_epic',
+        'category_id': 'organic',
+        'rarity_id': 'epic',
+        'name': 'Fertilizzante-Falco',
+        'material': 'Compost maturo',
+        'color': '#8b5cf6',
+        'description': 'Compost raramente perfetto per la coltivazione.',
+        'keywords': ['fertilizer', 'mature compost', 'nutrients', 'plant food', 'growth medium'],
+        'sort_order': 19
+    },
+    {
+        'id': 'organic_legendary',
+        'category_id': 'organic',
+        'rarity_id': 'legendary',
+        'name': 'Terreno-Sacro',
+        'material': 'Suolo rigenerato',
+        'color': '#f97316',
+        'description': 'Il suolo perfetto rigenerato dalla natura stessa.',
+        'keywords': ['regenerated soil', 'sacred earth', 'perfect soil', 'virgin soil', 'prime matter'],
+        'sort_order': 20
+    },
+    # --- INDIFFERENZIATO ---
+    {
+        'id': 'residual_common',
+        'category_id': 'residual',
+        'rarity_id': 'common',
+        'name': 'Scarto-Goblin',
+        'material': 'Rifiuti misti',
+        'color': '#475569',
+        'description': 'Rifiuti comuni non riciclabili.',
+        'keywords': ['waste', 'garbage', 'trash', 'refuse', 'litter'],
+        'sort_order': 21
+    },
+    {
+        'id': 'residual_uncommon',
+        'category_id': 'residual',
+        'rarity_id': 'uncommon',
+        'name': 'Detrito-Troll',
+        'material': 'Macerie',
+        'color': '#14b8a6',
+        'description': 'Detriti e frammenti di vari materiali.',
+        'keywords': ['debris', 'fragments', 'rubble', 'broken pieces', 'remnants'],
+        'sort_order': 22
+    },
+    {
+        'id': 'residual_rare',
+        'category_id': 'residual',
+        'rarity_id': 'rare',
+        'name': 'Reliquia-Orco',
+        'material': 'Oggetti complessi',
+        'color': '#f59e0b',
+        'description': 'Oggetti composti di materiali misti difficili da riciclare.',
+        'keywords': ['composite', 'mixed materials', 'complex object', 'multi-material'],
+        'sort_order': 23
+    },
+    {
+        'id': 'residual_epic',
+        'category_id': 'residual',
+        'rarity_id': 'epic',
+        'name': 'Mistero-Strega',
+        'material': 'Enigmatico',
+        'color': '#8b5cf6',
+        'description': 'Un oggetto misterioso il cui materiale è ancora sconosciuto.',
+        'keywords': ['mystery', 'unknown', 'enigmatic', 'puzzle', 'unidentified'],
+        'sort_order': 24
+    },
+    {
+        'id': 'residual_legendary',
+        'category_id': 'residual',
+        'rarity_id': 'legendary',
+        'name': 'Arcano-Leviathan',
+        'material': 'Leggenda perduta',
+        'color': '#f97316',
+        'description': 'Una leggenda perduta tra i rifiuti, forse non doveva essere qui.',
+        'keywords': ['legendary', 'mythical', 'ancient', 'forgotten', 'magical artifact'],
+        'sort_order': 25
     }
 ]
 

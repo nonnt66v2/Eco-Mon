@@ -18,6 +18,8 @@ cd backend
 python app.py
 ```
 
+Il server Flask esegue automaticamente `backend/db/init_db.py` all'avvio e usa `backend/db/ecomon.sqlite3`.
+
 In un secondo terminale:
 
 ```bash

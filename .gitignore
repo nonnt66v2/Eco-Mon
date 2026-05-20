@@ -10,8 +10,11 @@ frontend/node_modules
 
 # production
 /dist
-backend/ecomon.sqlite3
 frontend/dist
+backend/ecomon.sqlite3
+backend/db/ecomon.sqlite3
+backend/__pycache__
+backend/db/__pycache__
 
 # misc
 .DS_Store

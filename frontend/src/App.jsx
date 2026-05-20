@@ -7,27 +7,34 @@ import BottomNav from './components/navigation/BottomNav';
 import ToastMessage from './components/feedback/ToastMessage';
 import RewardModal from './components/feedback/RewardModal';
 import {
-  AI_MIN_CONFIDENCE,
-  AUTO_SCAN_INTERVAL_MS,
-  CAMERA_CONSTRAINTS,
-  ECO_MONS,
-  AI_KEYWORDS,
-  MAX_DAILY_SCANS,
-  NO_DETECTION_RESET_MS
-} from './constants/ecomonData';
-import {
   buildAiKeywordMaps,
   createDefaultState
 } from './utils/stateUtils';
 import {
   confirmScan,
+  fetchConfig,
   fetchCatalog,
   fetchGameState,
   resetGameState
 } from './utils/backendApi';
 
+const DEFAULT_RUNTIME_CONFIG = {
+  storageKey: 'ecomon-state',
+  aiMinConfidence: 0.4,
+  autoScanIntervalMs: 1000,
+  noDetectionResetMs: 10000,
+  cameraConstraints: [
+    { video: { facingMode: { ideal: 'environment' } } },
+    { video: { facingMode: 'environment' } },
+    { video: true }
+  ]
+};
+
+const DEFAULT_CATALOG = { ecoMons: [], aiKeywords: [], maxDailyScans: 3 };
+
 function App() {
-  const [catalog, setCatalog] = useState({ ecoMons: ECO_MONS, aiKeywords: AI_KEYWORDS, maxDailyScans: MAX_DAILY_SCANS });
+  const [runtimeConfig, setRuntimeConfig] = useState(DEFAULT_RUNTIME_CONFIG);
+  const [catalog, setCatalog] = useState(DEFAULT_CATALOG);
   const { wordMap: AI_KEYWORD_WORDS, phraseList: AI_KEYWORD_PHRASES } = useMemo(
     () => buildAiKeywordMaps(catalog.aiKeywords),
     [catalog.aiKeywords]
@@ -79,18 +86,29 @@ function App() {
     let active = true;
 
     const bootstrap = async () => {
-      const [catalogResponse, stateResponse] = await Promise.allSettled([
+      const [catalogResponse, stateResponse, configResponse] = await Promise.allSettled([
         fetchCatalog(),
-        fetchGameState()
+        fetchGameState(),
+        fetchConfig()
       ]);
 
       if (!active) return;
 
+      if (configResponse.status === 'fulfilled') {
+        setRuntimeConfig({
+          ...DEFAULT_RUNTIME_CONFIG,
+          ...configResponse.value,
+          cameraConstraints: Array.isArray(configResponse.value.cameraConstraints) && configResponse.value.cameraConstraints.length
+            ? configResponse.value.cameraConstraints
+            : DEFAULT_RUNTIME_CONFIG.cameraConstraints
+        });
+      }
+
       if (catalogResponse.status === 'fulfilled') {
         setCatalog({
-          ecoMons: Array.isArray(catalogResponse.value.ecoMons) && catalogResponse.value.ecoMons.length ? catalogResponse.value.ecoMons : ECO_MONS,
-          aiKeywords: Array.isArray(catalogResponse.value.aiKeywords) && catalogResponse.value.aiKeywords.length ? catalogResponse.value.aiKeywords : AI_KEYWORDS,
-          maxDailyScans: Number(catalogResponse.value.maxDailyScans) || MAX_DAILY_SCANS
+          ecoMons: Array.isArray(catalogResponse.value.ecoMons) ? catalogResponse.value.ecoMons : DEFAULT_CATALOG.ecoMons,
+          aiKeywords: Array.isArray(catalogResponse.value.aiKeywords) ? catalogResponse.value.aiKeywords : DEFAULT_CATALOG.aiKeywords,
+          maxDailyScans: Number(catalogResponse.value.maxDailyScans) || DEFAULT_CATALOG.maxDailyScans
         });
       }
 
@@ -291,7 +309,7 @@ function App() {
 
   const requestCameraStream = useCallback(async () => {
     let lastError = null;
-    for (const constraints of CAMERA_CONSTRAINTS) {
+    for (const constraints of runtimeConfig.cameraConstraints) {
       try {
         return await navigator.mediaDevices.getUserMedia(constraints);
       } catch (error) {
@@ -300,7 +318,7 @@ function App() {
       }
     }
     throw lastError || new Error("Camera unavailable");
-  }, []);
+  }, [runtimeConfig.cameraConstraints]);
 
   const getCameraErrorMessage = useCallback((error) => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -390,13 +408,13 @@ function App() {
       }
     });
 
-    if (!bestId || bestScore < AI_MIN_CONFIDENCE) return null;
+    if (!bestId || bestScore < runtimeConfig.aiMinConfidence) return null;
 
-    const mon = ECO_MONS.find((item) => item.id === bestId);
+    const mon = catalog.ecoMons.find((item) => item.id === bestId);
     if (!mon) return null;
 
     return { mon, confidence: Math.round(bestScore * 100) };
-  }, [AI_KEYWORD_PHRASES, AI_KEYWORD_WORDS]);
+  }, [AI_KEYWORD_PHRASES, AI_KEYWORD_WORDS, catalog.ecoMons, runtimeConfig.aiMinConfidence]);
 
   const recognizeWaste = useCallback(async (fromAutoScan = false) => {
     if (recognitionInProgressRef.current) return;
@@ -461,7 +479,7 @@ function App() {
         if (previousTypeId !== null) {
           const now = Date.now();
           const elapsed = now - lastDetectionAtRef.current;
-          if (elapsed < NO_DETECTION_RESET_MS) return;
+          if (elapsed < runtimeConfig.noDetectionResetMs) return;
 
           currentRecognitionRef.current = null;
           lastDetectionAtRef.current = 0;
@@ -494,7 +512,7 @@ function App() {
     } finally {
       recognitionInProgressRef.current = false;
     }
-  }, [ensureAiModel, getCaptureCanvas, mapPredictionsToEcoMon, showToast, syncCanvasSize]);
+  }, [ensureAiModel, getCaptureCanvas, mapPredictionsToEcoMon, runtimeConfig.noDetectionResetMs, showToast, syncCanvasSize]);
 
   useEffect(() => {
     if (!cameraActive) return undefined;
@@ -504,12 +522,12 @@ function App() {
     };
 
     runAutoScan();
-    const intervalId = window.setInterval(runAutoScan, AUTO_SCAN_INTERVAL_MS);
+    const intervalId = window.setInterval(runAutoScan, runtimeConfig.autoScanIntervalMs);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [cameraActive, recognizeWaste]);
+  }, [cameraActive, recognizeWaste, runtimeConfig.autoScanIntervalMs]);
 
   const confirmDeposit = useCallback(async () => {
     const current = currentRecognitionRef.current;

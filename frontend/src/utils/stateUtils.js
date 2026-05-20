@@ -1,6 +1,4 @@
-import { AI_KEYWORDS, STORAGE_KEY } from "../constants/ecomonData";
-
-export function buildAiKeywordMaps(sourceKeywords = AI_KEYWORDS) {
+export function buildAiKeywordMaps(sourceKeywords = []) {
   const wordMap = new Map();
   const phraseList = [];
 
@@ -30,8 +28,8 @@ export function createDefaultState() {
   return { lastDate: getToday(), todayScans: 0, todayCollected: [], unlocked: {} };
 }
 
-export function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
+export function loadState(storageKey = "ecomon-state") {
+  const raw = localStorage.getItem(storageKey);
   if (!raw) return createDefaultState();
 
   try {
@@ -47,6 +45,6 @@ export function loadState() {
   }
 }
 
-export function saveState(state) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+export function saveState(state, storageKey = "ecomon-state") {
+  localStorage.setItem(storageKey, JSON.stringify(state));
 }

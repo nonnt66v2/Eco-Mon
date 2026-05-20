@@ -29,6 +29,10 @@ export function fetchGameState() {
   return requestJson('/state');
 }
 
+export function fetchConfig() {
+  return requestJson('/config');
+}
+
 export function confirmScan(cardId) {
   return requestJson('/confirm', {
     method: 'POST',

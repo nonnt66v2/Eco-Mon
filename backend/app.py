@@ -6,6 +6,8 @@ from db.init_db import confirm_scan, get_catalog, get_state, initialize_db, rese
 
 app = Flask(__name__)
 
+initialize_db()
+
 
 @app.after_request
 def add_cors_headers(response):

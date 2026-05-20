@@ -11,7 +11,7 @@ ALLOWED_ORIGIN = '*'
 ALLOWED_HEADERS = 'Content-Type'
 ALLOWED_METHODS = 'GET,POST,OPTIONS'
 
-MAX_DAILY_SCANS = 3
+MAX_DAILY_SCANS = 100
 
 
 def get_public_config():

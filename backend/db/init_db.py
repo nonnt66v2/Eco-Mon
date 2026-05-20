@@ -760,8 +760,9 @@ def confirm_scan(card_id):
         if not random_rows:
             raise ValueError('Nessun Eco-Mon trovato per questa categoria.')
         
-        # Seleziona casualmente uno
-        selected_card_row = random.choice(random_rows)
+        # Seleziona con probabilità proporzionali alla rarità
+        weights = [row['rarity_chance_percent'] for row in random_rows]
+        selected_card_row = random.choices(random_rows, weights=weights, k=1)[0]
         selected_card_id = selected_card_row['id']
         
         if state['todayScans'] >= MAX_DAILY_SCANS:

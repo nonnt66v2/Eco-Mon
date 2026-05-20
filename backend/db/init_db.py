@@ -1,4 +1,5 @@
 import json
+import random
 import sqlite3
 from datetime import date
 
@@ -481,7 +482,7 @@ def initialize_db():
         current_schema = connection.execute(
             "SELECT value FROM schema_meta WHERE key = 'catalog_schema_version'"
         ).fetchone()
-        if current_schema is None or current_schema['value'] != '2':
+        if current_schema is None or current_schema['value'] != '3':
             connection.execute('DELETE FROM category_bins')
             connection.execute('DELETE FROM eco_mon_cards')
             connection.execute('DELETE FROM rarities')
@@ -555,6 +556,11 @@ def initialize_db():
                 ''',
                 (date.today().isoformat(),)
             )
+
+        connection.execute(
+            "INSERT INTO schema_meta (key, value) VALUES ('catalog_schema_version', '3') ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        )
+        connection.commit()
 
 
 def _get_state_row(connection):
@@ -726,29 +732,47 @@ def get_state():
 def confirm_scan(card_id):
     with get_connection() as connection:
         state = _ensure_today(connection)
-        rows = connection.execute(
+        
+        # Trova l'eco-mon riconosciuto per estrarre la categoria
+        recognized_card = connection.execute(
+            'SELECT category_id FROM eco_mon_cards WHERE id = ?',
+            (card_id,)
+        ).fetchone()
+        
+        if not recognized_card:
+            raise ValueError('Carta non trovata.')
+        
+        category_id = recognized_card['category_id']
+        
+        # Seleziona casualmente uno dei 5 eco-mon della categoria
+        random_rows = connection.execute(
             '''
             SELECT eco_mon_cards.*, rarities.name AS rarity_name, rarities.chance_percent AS rarity_chance_percent,
                    rarities.color AS rarity_color, waste_categories.name AS category_name
             FROM eco_mon_cards
             JOIN rarities ON rarities.id = eco_mon_cards.rarity_id
             JOIN waste_categories ON waste_categories.id = eco_mon_cards.category_id
-            WHERE eco_mon_cards.id = ?
+            WHERE eco_mon_cards.category_id = ?
             ''',
-            (card_id,)
+            (category_id,)
         ).fetchall()
-        if not rows:
-            raise ValueError('Carta non trovata.')
-
+        
+        if not random_rows:
+            raise ValueError('Nessun Eco-Mon trovato per questa categoria.')
+        
+        # Seleziona casualmente uno
+        selected_card_row = random.choice(random_rows)
+        selected_card_id = selected_card_row['id']
+        
         if state['todayScans'] >= MAX_DAILY_SCANS:
             raise PermissionError('Limite giornaliero raggiunto. Torna domani!')
 
-        if card_id in state['todayCollected']:
+        if selected_card_id in state['todayCollected']:
             raise PermissionError('Hai già salvato questo Eco-Mon oggi! Cerca altri materiali.')
 
         state['todayScans'] += 1
-        state['todayCollected'].append(card_id)
-        state['unlocked'][card_id] = True
+        state['todayCollected'].append(selected_card_id)
+        state['unlocked'][selected_card_id] = True
 
         connection.execute(
             '''
@@ -765,17 +789,16 @@ def confirm_scan(card_id):
         )
         connection.commit()
 
-        card_row = rows[0]
         card = {
-            'id': card_row['id'],
-            'name': card_row['name'],
-            'material': card_row['material'],
+            'id': selected_card_row['id'],
+            'name': selected_card_row['name'],
+            'material': selected_card_row['material'],
             'bin': None,
-            'color': card_row['color'],
-            'rarity': card_row['rarity_name'],
-            'rarityChancePercent': card_row['rarity_chance_percent'],
-            'rarityColor': card_row['rarity_color'],
-            'description': card_row['description']
+            'color': selected_card_row['color'],
+            'rarity': selected_card_row['rarity_name'],
+            'rarityChancePercent': selected_card_row['rarity_chance_percent'],
+            'rarityColor': selected_card_row['rarity_color'],
+            'description': selected_card_row['description']
         }
 
         bin_row = connection.execute(
@@ -787,7 +810,7 @@ def confirm_scan(card_id):
             ORDER BY waste_bins.sort_order, waste_bins.label
             LIMIT 1
             ''',
-            (card_row['category_id'],)
+            (category_id,)
         ).fetchone()
 
         card['bin'] = bin_row['label'] if bin_row else None

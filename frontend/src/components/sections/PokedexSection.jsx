@@ -19,6 +19,7 @@ export default function PokedexSection({ sectionRef, ecoMons, unlocked }) {
                 }}
               >
                 <strong>{isUnlocked ? mon.name : "???"}</strong>
+                {isUnlocked && mon.rarity && <span className="badge">Rarità {mon.rarity}</span>}
                 <span className="badge">{mon.material}</span>
                 <p>{isUnlocked ? mon.description : "Sblocca questo Eco-Mon con una scansione."}</p>
                 <span className="badge">Bidone {mon.bin}</span>

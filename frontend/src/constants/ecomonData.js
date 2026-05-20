@@ -1,13 +1,13 @@
 export const ECO_MONS = [
-  { id: "pet", name: "PET-Dragon", material: "Plastica (PET)", bin: "GIALLO", color: "#fbbf24", description: "Bottiglie e flaconi in plastica trasparente." },
-  { id: "paper", name: "Carta-Kong", material: "Carta", bin: "BLU", color: "#60a5fa", description: "Fogli, cartoncini e giornali puliti." },
-  { id: "tetra", name: "Tetra-Fox", material: "Tetrapak", bin: "GIALLO", color: "#f59e0b", description: "Cartoni per bevande e succhi." },
-  { id: "glass", name: "Vetro-Lumaca", material: "Vetro", bin: "VERDE", color: "#22c55e", description: "Bottiglie e vasetti in vetro." },
-  { id: "organic", name: "Bio-Fungus", material: "Organico", bin: "MARRONE", color: "#a16207", description: "Scarti di cibo, bucce, fondi di caffè." },
-  { id: "metal", name: "Alu-Rex", material: "Alluminio", bin: "GIALLO", color: "#94a3b8", description: "Lattine, scatolette e piccoli metalli." }
+  { id: "pet", name: "PET-Dragon", material: "Plastica (PET)", bin: "GIALLO", color: "#fbbf24", rarity: "Common", description: "Bottiglie e flaconi in plastica trasparente." },
+  { id: "paper", name: "Carta-Kong", material: "Carta", bin: "BLU", color: "#60a5fa", rarity: "Common", description: "Fogli, cartoncini e giornali puliti." },
+  { id: "tetra", name: "Tetra-Fox", material: "Tetrapak", bin: "GIALLO", color: "#f59e0b", rarity: "Uncommon", description: "Cartoni per bevande e succhi." },
+  { id: "glass", name: "Vetro-Lumaca", material: "Vetro", bin: "VERDE", color: "#22c55e", rarity: "Rare", description: "Bottiglie e vasetti in vetro." },
+  { id: "organic", name: "Bio-Fungus", material: "Organico", bin: "MARRONE", color: "#a16207", rarity: "Uncommon", description: "Scarti di cibo, bucce, fondi di caffè." },
+  { id: "metal", name: "Alu-Rex", material: "Alluminio", bin: "GIALLO", color: "#94a3b8", rarity: "Rare", description: "Lattine, scatolette e piccoli metalli." }
 ];
 
-export const MAX_DAILY_SCANS = 100;
+export const MAX_DAILY_SCANS = 3;
 export const STORAGE_KEY = "ecomon-state";
 export const AI_MIN_CONFIDENCE = 0.4;
 export const AUTO_SCAN_INTERVAL_MS = 1000;

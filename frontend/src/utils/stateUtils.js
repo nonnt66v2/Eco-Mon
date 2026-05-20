@@ -1,10 +1,10 @@
 import { AI_KEYWORDS, STORAGE_KEY } from "../constants/ecomonData";
 
-export function buildAiKeywordMaps() {
+export function buildAiKeywordMaps(sourceKeywords = AI_KEYWORDS) {
   const wordMap = new Map();
   const phraseList = [];
 
-  AI_KEYWORDS.forEach((hint) => {
+  sourceKeywords.forEach((hint) => {
     hint.keywords.forEach((keyword) => {
       const normalized = keyword.toLowerCase();
       if (normalized.includes(" ")) {

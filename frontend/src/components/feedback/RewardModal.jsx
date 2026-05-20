@@ -10,6 +10,7 @@ export default function RewardModal({ modalOpen, modalMon, onClose }) {
             <>
               <h3>{modalMon.name}</h3>
               <p>{modalMon.description}</p>
+              {modalMon.rarity && <span className="badge">Rarità: {modalMon.rarity}</span>}
               <span className="badge">Materiale: {modalMon.material}</span>
               <span className="badge">Bidone: {modalMon.bin}</span>
             </>

@@ -6,19 +6,27 @@ Il bambino inquadra un rifiuto, l’app suggerisce il bidone giusto e sblocca un
 ## Funzionalità demo
 
 - Scanner PWA con fotocamera e riconoscimento AI on-device.
+- Catalogo carte e stato giornaliero gestiti dal backend locale con SQLite.
 - Anti-cheat: massimo 3 rifiuti al giorno e blocco duplicati giornalieri.
-- Pokedex persistente via `localStorage`.
+- Pokedex persistente salvato nel database locale.
 - Modalità offline con service worker.
 
 ## Avvio locale
 
 ```bash
-cd frontend
-npm install
-npm run start
+cd backend
+python app.py
 ```
 
-Apri l’URL indicato dal server (es. `http://localhost:3000`).
+In un secondo terminale:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Apri l’URL indicato dal server Vite. Le richieste `/api` vengono inoltrate al backend locale.
 
 ## Note
 

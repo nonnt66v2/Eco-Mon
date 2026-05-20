@@ -11,20 +11,27 @@ import {
   AUTO_SCAN_INTERVAL_MS,
   CAMERA_CONSTRAINTS,
   ECO_MONS,
+  AI_KEYWORDS,
   MAX_DAILY_SCANS,
-  NO_DETECTION_RESET_MS,
-  STORAGE_KEY
+  NO_DETECTION_RESET_MS
 } from './constants/ecomonData';
 import {
   buildAiKeywordMaps,
-  createDefaultState,
-  getToday,
-  loadState,
-  saveState
+  createDefaultState
 } from './utils/stateUtils';
+import {
+  confirmScan,
+  fetchCatalog,
+  fetchGameState,
+  resetGameState
+} from './utils/backendApi';
 
 function App() {
-  const { wordMap: AI_KEYWORD_WORDS, phraseList: AI_KEYWORD_PHRASES } = useMemo(buildAiKeywordMaps, []);
+  const [catalog, setCatalog] = useState({ ecoMons: ECO_MONS, aiKeywords: AI_KEYWORDS, maxDailyScans: MAX_DAILY_SCANS });
+  const { wordMap: AI_KEYWORD_WORDS, phraseList: AI_KEYWORD_PHRASES } = useMemo(
+    () => buildAiKeywordMaps(catalog.aiKeywords),
+    [catalog.aiKeywords]
+  );
   const sectionOrder = useMemo(() => ["home", "scan", "dex"], []);
 
   const cameraFeedRef = useRef(null);
@@ -42,7 +49,7 @@ function App() {
   const [toast, setToast] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
 
-  const [state, setState] = useState(loadState);
+  const [state, setState] = useState(createDefaultState());
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMon, setModalMon] = useState(null);
   const [activeSection, setActiveSection] = useState("home");
@@ -68,19 +75,38 @@ function App() {
     setOnline(navigator.onLine);
   }, []);
 
-  const resetIfNewDay = useCallback((prevState) => {
-    const today = getToday();
-    if (prevState.lastDate !== today) {
-      const next = { ...prevState, lastDate: today, todayScans: 0, todayCollected: [] };
-      saveState(next);
-      return next;
-    }
-    return prevState;
-  }, []);
-
   useEffect(() => {
-    setState((prev) => resetIfNewDay(prev));
-  }, [resetIfNewDay]);
+    let active = true;
+
+    const bootstrap = async () => {
+      const [catalogResponse, stateResponse] = await Promise.allSettled([
+        fetchCatalog(),
+        fetchGameState()
+      ]);
+
+      if (!active) return;
+
+      if (catalogResponse.status === 'fulfilled') {
+        setCatalog({
+          ecoMons: Array.isArray(catalogResponse.value.ecoMons) && catalogResponse.value.ecoMons.length ? catalogResponse.value.ecoMons : ECO_MONS,
+          aiKeywords: Array.isArray(catalogResponse.value.aiKeywords) && catalogResponse.value.aiKeywords.length ? catalogResponse.value.aiKeywords : AI_KEYWORDS,
+          maxDailyScans: Number(catalogResponse.value.maxDailyScans) || MAX_DAILY_SCANS
+        });
+      }
+
+      if (stateResponse.status === 'fulfilled') {
+        setState(stateResponse.value.state || createDefaultState());
+      } else {
+        setState(createDefaultState());
+      }
+    };
+
+    void bootstrap();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     window.addEventListener("online", updateOnlineStatus);
@@ -377,8 +403,6 @@ function App() {
     recognitionInProgressRef.current = true;
 
     try {
-      setState((prev) => resetIfNewDay(prev));
-
       if (!cameraStreamRef.current && !selectedImageRef.current) {
         if (!fromAutoScan) showToast("Attiva la fotocamera o scatta/carica una foto prima di analizzare.");
         return;
@@ -470,7 +494,7 @@ function App() {
     } finally {
       recognitionInProgressRef.current = false;
     }
-  }, [ensureAiModel, getCaptureCanvas, mapPredictionsToEcoMon, resetIfNewDay, showToast, syncCanvasSize]);
+  }, [ensureAiModel, getCaptureCanvas, mapPredictionsToEcoMon, showToast, syncCanvasSize]);
 
   useEffect(() => {
     if (!cameraActive) return undefined;
@@ -487,39 +511,25 @@ function App() {
     };
   }, [cameraActive, recognizeWaste]);
 
-  const confirmDeposit = useCallback(() => {
-    setState((prev) => {
-      const next = resetIfNewDay(prev);
-      const current = currentRecognitionRef.current;
+  const confirmDeposit = useCallback(async () => {
+    const current = currentRecognitionRef.current;
 
-      if (!current) {
-        showToast("Nessun rifiuto riconosciuto. Premi Analizza.");
-        return next;
-      }
-      if (next.todayScans >= MAX_DAILY_SCANS) {
-        showToast("Limite giornaliero raggiunto. Torna domani!");
-        return next;
-      }
-      if (next.todayCollected.includes(current.id)) {
-        showToast("Hai già salvato questo Eco-Mon oggi! Cerca altri materiali.");
-        return next;
-      }
+    if (!current) {
+      showToast("Nessun rifiuto riconosciuto. Premi Analizza.");
+      return;
+    }
 
-      const updated = {
-        ...next,
-        todayScans: next.todayScans + 1,
-        todayCollected: [...next.todayCollected, current.id],
-        unlocked: { ...next.unlocked, [current.id]: true }
-      };
-      saveState(updated);
-
+    try {
+      const response = await confirmScan(current.id);
+      setState(response.state);
       currentRecognitionRef.current = null;
       setConfirmEnabled(false);
-      setModalMon(current);
+      setModalMon(response.card || current);
       setModalOpen(true);
-      return updated;
-    });
-  }, [resetIfNewDay, showToast]);
+    } catch (error) {
+      showToast(error.message || "Impossibile salvare la carta.");
+    }
+  }, [showToast]);
 
   const scrollToSection = useCallback((sectionId) => {
     const section = sectionRefs.current[sectionId];
@@ -528,7 +538,7 @@ function App() {
     section.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
   }, []);
 
-  const resetDebugData = useCallback(() => {
+  const resetDebugData = useCallback(async () => {
     const video = cameraFeedRef.current;
     stopCameraStream();
     setCameraActive(false);
@@ -539,11 +549,12 @@ function App() {
       video.load();
     }
 
-    const freshState = createDefaultState();
-    localStorage.removeItem(STORAGE_KEY);
-    saveState(freshState);
-
-    setState(freshState);
+    try {
+      const response = await resetGameState();
+      setState(response.state || createDefaultState());
+    } catch {
+      setState(createDefaultState());
+    }
     currentRecognitionRef.current = null;
     lastDetectionAtRef.current = 0;
     setConfirmEnabled(false);
@@ -557,7 +568,7 @@ function App() {
   }, [resetSelectedImage, scrollToSection, showToast, stopCameraStream]);
 
   const unlockedCount = Object.values(state.unlocked).filter(Boolean).length;
-  const progressPercent = Math.min(100, (unlockedCount / ECO_MONS.length) * 100);
+  const progressPercent = Math.min(100, (unlockedCount / catalog.ecoMons.length) * 100);
 
   return (
     <>
@@ -566,7 +577,7 @@ function App() {
           <HomeSection
             online={online}
             progressPercent={progressPercent}
-            maxDailyScans={MAX_DAILY_SCANS}
+            maxDailyScans={catalog.maxDailyScans}
             todayScans={state.todayScans}
             sectionRef={(element) => { sectionRefs.current.home = element; }}
           />
@@ -586,7 +597,7 @@ function App() {
 
           <PokedexSection
             sectionRef={(element) => { sectionRefs.current.dex = element; }}
-            ecoMons={ECO_MONS}
+            ecoMons={catalog.ecoMons}
             unlocked={state.unlocked}
           />
         </div>

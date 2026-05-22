@@ -65,6 +65,8 @@ function App() {
   const cameraStreamRef = useRef(null);
   const aiModelRef = useRef(null);
   const aiModelPromiseRef = useRef(null);
+  const segmentationModelRef = useRef(null);
+  const segmentationModelPromiseRef = useRef(null);
   const selectedImageRef = useRef(null);
   const selectedImageUrlRef = useRef("");
   const recognitionInProgressRef = useRef(false);
@@ -202,6 +204,72 @@ function App() {
     return ensureAiModel().catch(() => null);
   }, [ensureAiModel]);
 
+  const ensureSegmentationModel = useCallback(() => {
+    if (segmentationModelRef.current) return Promise.resolve(segmentationModelRef.current);
+    if (!window.deeplab || !window.tf) {
+      return Promise.resolve(null);
+    }
+    if (!segmentationModelPromiseRef.current) {
+      segmentationModelPromiseRef.current = window.deeplab
+        .load({ base: "pascal", quantizationBytes: 2 })
+        .then((model) => {
+          segmentationModelRef.current = model;
+          return model;
+        })
+        .catch(() => {
+          segmentationModelPromiseRef.current = null;
+          return null;
+        });
+    }
+    return segmentationModelPromiseRef.current;
+  }, []);
+
+  const prepareSegmentationModel = useCallback(() => {
+    return ensureSegmentationModel().catch(() => null);
+  }, [ensureSegmentationModel]);
+
+  const preprocessWithSegmentation = useCallback(async (canvas) => {
+    const model = await ensureSegmentationModel();
+    if (!model) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    if (!width || !height) return;
+
+    let segmentation;
+    try {
+      segmentation = await model.segment(canvas);
+    } catch {
+      return;
+    }
+
+    const segmentationMap = segmentation?.segmentationMap;
+    if (!segmentationMap || segmentationMap.length !== width * height) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const pixels = imageData.data;
+
+    const backgroundIds = new Set(
+      Object.entries(segmentation?.legend || {})
+        .filter(([, label]) => String(label).toLowerCase() === "background")
+        .map(([classId]) => Number(classId))
+    );
+    if (!backgroundIds.size) backgroundIds.add(0);
+
+    for (let i = 0; i < segmentationMap.length; i += 1) {
+      if (!backgroundIds.has(segmentationMap[i])) continue;
+      const offset = i * 4;
+      pixels[offset] = Math.round(pixels[offset] * 0.2);
+      pixels[offset + 1] = Math.round(pixels[offset + 1] * 0.2);
+      pixels[offset + 2] = Math.round(pixels[offset + 2] * 0.2);
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+  }, [ensureSegmentationModel]);
+
   const getCaptureCanvas = useCallback(() => {
     if (!captureCanvasRef.current) {
       captureCanvasRef.current = document.createElement("canvas");
@@ -283,10 +351,11 @@ function App() {
       setResultBin("—");
       showToast("Foto caricata. Premi Analizza.");
       prepareAiModel();
+      prepareSegmentationModel();
     } catch {
       showToast("Immagine non valida. Riprova.");
     }
-  }, [loadImageFromFile, prepareAiModel, showToast, stopCameraStream]);
+  }, [loadImageFromFile, prepareAiModel, prepareSegmentationModel, showToast, stopCameraStream]);
 
   const ensureFallbackInput = useCallback(() => {
     if (fallbackInputRef.current) return fallbackInputRef.current;
@@ -367,11 +436,12 @@ function App() {
       setResultBin("—");
       showToast("Fotocamera attiva. Inquadra il rifiuto!");
       prepareAiModel();
+      prepareSegmentationModel();
     } catch (error) {
       showToast(getCameraErrorMessage(error));
       requestFallbackCapture();
     }
-  }, [getCameraErrorMessage, prepareAiModel, requestCameraStream, requestFallbackCapture, resetSelectedImage, showToast, stopCameraStream, syncCanvasSize]);
+  }, [getCameraErrorMessage, prepareAiModel, prepareSegmentationModel, requestCameraStream, requestFallbackCapture, resetSelectedImage, showToast, stopCameraStream, syncCanvasSize]);
 
   const mapPredictionsToEcoMon = useCallback((predictions) => {
     const scores = new Map();
@@ -466,6 +536,8 @@ function App() {
         ctx.drawImage(selectedImageRef.current, 0, 0, canvas.width, canvas.height);
       }
 
+      await preprocessWithSegmentation(canvas);
+
       let predictions = [];
       try {
         predictions = await model.classify(canvas, 5);
@@ -512,7 +584,7 @@ function App() {
     } finally {
       recognitionInProgressRef.current = false;
     }
-  }, [ensureAiModel, getCaptureCanvas, mapPredictionsToEcoMon, runtimeConfig.noDetectionResetMs, showToast, syncCanvasSize]);
+  }, [ensureAiModel, getCaptureCanvas, mapPredictionsToEcoMon, preprocessWithSegmentation, runtimeConfig.noDetectionResetMs, showToast, syncCanvasSize]);
 
   useEffect(() => {
     if (!cameraActive) return undefined;

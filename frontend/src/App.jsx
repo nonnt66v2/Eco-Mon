@@ -34,6 +34,7 @@ const DEFAULT_CATALOG = { ecoMons: [], aiKeywords: [], maxDailyScans: 3 };
 const DEEPLAB_BASE = "pascal";
 const DEEPLAB_QUANTIZATION_BYTES = 2;
 const BACKGROUND_DIM_FACTOR = 0.2;
+const BACKGROUND_LABEL_REGEX = /(?:^|\b)(background|bg)(?:\b|$)/i;
 
 function App() {
   const [runtimeConfig, setRuntimeConfig] = useState(DEFAULT_RUNTIME_CONFIG);
@@ -258,15 +259,22 @@ function App() {
     const backgroundIds = new Set(
       Object.entries(segmentation?.legend || {})
         .filter(([, label]) => {
-          const normalized = String(label).toLowerCase();
-          return normalized === "background" || normalized.includes("background") || normalized === "bg";
+          return BACKGROUND_LABEL_REGEX.test(String(label).trim());
         })
         .map(([classId]) => Number(classId))
     );
     if (!backgroundIds.size) backgroundIds.add(0);
+    const classLookupSize = Math.max(...backgroundIds) + 1;
+    const isBackgroundClass = new Uint8Array(classLookupSize);
+    backgroundIds.forEach((classId) => {
+      if (classId >= 0 && classId < classLookupSize) {
+        isBackgroundClass[classId] = 1;
+      }
+    });
 
     for (let i = 0; i < segmentationMap.length; i += 1) {
-      if (!backgroundIds.has(segmentationMap[i])) continue;
+      const classId = segmentationMap[i];
+      if (classId < 0 || classId >= classLookupSize || !isBackgroundClass[classId]) continue;
       const offset = i * 4;
       pixels[offset] = Math.round(pixels[offset] * BACKGROUND_DIM_FACTOR);
       pixels[offset + 1] = Math.round(pixels[offset + 1] * BACKGROUND_DIM_FACTOR);

@@ -42,10 +42,30 @@ class Segmenter:
                     varThreshold=config.bg_var_threshold,
                     detectShadows=config.bg_detect_shadows
                 )
+        self._last_hist_threshold: float | None = None
+        self._last_brightness: float | None = None
+        self._frame_index = 0
 
     def _get_adaptive_c_value(self, brightness: float) -> int:
         delta = (self.config.brightness_target - brightness) * self.config.brightness_correction
         return int(round(self.config.adaptive_c + delta))
+
+    def _get_hist_threshold(self, gray: np.ndarray, brightness: float) -> float:
+        self._frame_index += 1
+        if self._last_hist_threshold is None:
+            recompute = True
+        else:
+            brightness_delta = abs(brightness - (self._last_brightness or brightness))
+            recompute = (
+                brightness_delta >= self.config.hist_brightness_delta
+                or self._frame_index % self.config.hist_refresh_frames == 0
+            )
+
+        if recompute:
+            self._last_hist_threshold = float(np.percentile(gray, self.config.hist_percentile))
+            self._last_brightness = brightness
+
+        return self._last_hist_threshold or 0.0
 
     def _apply_background(self, frame: np.ndarray) -> np.ndarray | None:
         if not self.bg_subtractor:
@@ -77,7 +97,7 @@ class Segmenter:
             adaptive_c
         )
 
-        hist_thresh = float(np.percentile(gray, self.config.hist_percentile))
+        hist_thresh = self._get_hist_threshold(gray, pre.brightness)
         _, hist_mask = cv2.threshold(gray, hist_thresh, 255, cv2.THRESH_BINARY)
 
         combined = cv2.bitwise_or(otsu, adaptive)

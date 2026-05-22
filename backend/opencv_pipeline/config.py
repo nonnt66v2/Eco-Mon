@@ -36,6 +36,8 @@ class PipelineConfig:
     adaptive_block_size: int = 31
     adaptive_c: int = 2
     hist_percentile: float = 70.0
+    hist_refresh_frames: int = 5
+    hist_brightness_delta: float = 8.0
     brightness_target: float = 120.0
     brightness_correction: float = 0.03
     canny_sigma: float = 0.33
@@ -67,7 +69,7 @@ class PipelineConfig:
 
 def parse_args(argv: list[str] | None = None) -> PipelineConfig:
     parser = argparse.ArgumentParser(
-        description="Eco-Mon OpenCV realtime segmentation pipeline"
+        description="Realtime OpenCV segmentation pipeline"
     )
     parser.add_argument("--source", default="0", help="Camera index, file path, or RTSP/HTTP URL")
     parser.add_argument("--window-name", default="OpenCV Realtime")
@@ -91,6 +93,8 @@ def parse_args(argv: list[str] | None = None) -> PipelineConfig:
     parser.add_argument("--adaptive-block", type=int, default=31)
     parser.add_argument("--adaptive-c", type=int, default=2)
     parser.add_argument("--hist-percentile", type=float, default=70.0)
+    parser.add_argument("--hist-refresh", type=int, default=5)
+    parser.add_argument("--hist-delta", type=float, default=8.0)
     parser.add_argument("--brightness-target", type=float, default=120.0)
     parser.add_argument("--brightness-correction", type=float, default=0.03)
     parser.add_argument("--canny-sigma", type=float, default=0.33)
@@ -144,6 +148,8 @@ def parse_args(argv: list[str] | None = None) -> PipelineConfig:
         adaptive_block_size=ensure_odd(args.adaptive_block),
         adaptive_c=args.adaptive_c,
         hist_percentile=min(max(args.hist_percentile, 1.0), 99.0),
+        hist_refresh_frames=max(1, args.hist_refresh),
+        hist_brightness_delta=max(0.0, args.hist_delta),
         brightness_target=min(max(args.brightness_target, 10.0), 245.0),
         brightness_correction=max(0.0, args.brightness_correction),
         canny_sigma=min(max(args.canny_sigma, 0.05), 0.9),

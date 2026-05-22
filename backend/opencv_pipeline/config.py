@@ -4,7 +4,7 @@ import argparse
 from dataclasses import dataclass
 
 
-def ensure_odd(value: int, minimum: int = 3) -> int:
+def ensure_odd_minimum(value: int, minimum: int = 3) -> int:
     if value < minimum:
         value = minimum
     if value % 2 == 0:
@@ -141,11 +141,11 @@ def parse_args(argv: list[str] | None = None) -> PipelineConfig:
         capture_height=args.capture_height,
         capture_fps=args.capture_fps,
         capture_buffer=max(0, args.capture_buffer),
-        gaussian_kernel=ensure_odd(args.gaussian_kernel),
-        median_kernel=ensure_odd(args.median_kernel),
+        gaussian_kernel=ensure_odd_minimum(args.gaussian_kernel),
+        median_kernel=ensure_odd_minimum(args.median_kernel),
         clahe_clip_limit=max(0.1, args.clahe_clip),
         clahe_grid_size=max(2, args.clahe_grid),
-        adaptive_block_size=ensure_odd(args.adaptive_block),
+        adaptive_block_size=ensure_odd_minimum(args.adaptive_block),
         adaptive_c=args.adaptive_c,
         hist_percentile=min(max(args.hist_percentile, 1.0), 99.0),
         hist_refresh_frames=max(1, args.hist_refresh),
@@ -153,10 +153,10 @@ def parse_args(argv: list[str] | None = None) -> PipelineConfig:
         brightness_target=min(max(args.brightness_target, 10.0), 245.0),
         brightness_correction=max(0.0, args.brightness_correction),
         canny_sigma=min(max(args.canny_sigma, 0.05), 0.9),
-        morph_open=ensure_odd(args.morph_open),
-        morph_close=ensure_odd(args.morph_close),
+        morph_open=ensure_odd_minimum(args.morph_open),
+        morph_close=ensure_odd_minimum(args.morph_close),
         morph_iterations=max(1, args.morph_iterations),
-        edge_dilate=ensure_odd(args.edge_dilate),
+        edge_dilate=ensure_odd_minimum(args.edge_dilate),
         use_background=not args.disable_bg,
         bg_history=max(10, args.bg_history),
         bg_var_threshold=max(4, args.bg_var_threshold),

@@ -11,6 +11,11 @@ Il bambino inquadra un rifiuto, l’app suggerisce il bidone giusto e sblocca un
 - Pokedex persistente salvato nel database locale.
 - Modalità offline con service worker.
 
+### Installazione
+```bash 
+
+cd frontend/ && npm install  && cd ../backend/ && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+```
 ## Avvio locale
 
 ```bash

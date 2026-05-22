@@ -34,7 +34,7 @@ const DEFAULT_CATALOG = { ecoMons: [], aiKeywords: [], maxDailyScans: 3 };
 const DEEPLAB_BASE = "pascal";
 const DEEPLAB_QUANTIZATION_BYTES = 2;
 const BACKGROUND_DIM_FACTOR = 0.2;
-const BACKGROUND_LABEL_PATTERN = /(?:^|\b)(background|bg)(?:\b|$)/i;
+const BACKGROUND_KEYWORD_PATTERN = /(?:^|\b)(background|bg)(?:\b|$)/i;
 
 function App() {
   const [runtimeConfig, setRuntimeConfig] = useState(DEFAULT_RUNTIME_CONFIG);
@@ -264,12 +264,14 @@ function App() {
     const backgroundClassIds = new Set(
       Object.entries(segmentation?.legend || {})
         .filter(([, label]) => {
-          return BACKGROUND_LABEL_PATTERN.test(String(label).trim());
+          return BACKGROUND_KEYWORD_PATTERN.test(String(label).trim());
         })
         .map(([classId]) => Number(classId))
     );
     if (!backgroundClassIds.size) backgroundClassIds.add(0);
-    const classLookupSize = backgroundClassIds.size ? Math.max(...backgroundClassIds) + 1 : 1;
+    const classLookupSize = backgroundClassIds.size
+      ? Array.from(backgroundClassIds).reduce((maxClass, classId) => Math.max(maxClass, classId), 0) + 1
+      : 1;
     const isBackgroundClass = new Uint8Array(classLookupSize);
     backgroundClassIds.forEach((classId) => {
       if (classId >= 0 && classId < classLookupSize) {

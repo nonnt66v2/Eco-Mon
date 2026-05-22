@@ -62,7 +62,10 @@ class Segmenter:
             )
 
         if recompute:
-            self._last_hist_threshold = float(np.percentile(gray, self.config.hist_percentile))
+            sample = gray
+            if gray.size > 300_000:
+                sample = gray[::2, ::2]
+            self._last_hist_threshold = float(np.percentile(sample, self.config.hist_percentile))
             self._last_brightness = brightness
 
         return self._last_hist_threshold or 0.0

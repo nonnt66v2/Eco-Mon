@@ -249,7 +249,9 @@ function App() {
 
     const segmentationMap = segmentation?.segmentationMap;
     if (!segmentationMap || segmentationMap.length !== width * height) {
-      console.warn("Segmentation map size mismatch, skipping preprocessing.");
+      console.warn(
+        `Segmentation map size mismatch (expected ${width * height}, got ${segmentationMap?.length ?? 0}), skipping preprocessing.`
+      );
       return;
     }
 
@@ -259,17 +261,17 @@ function App() {
     const imageData = ctx.getImageData(0, 0, width, height);
     const pixels = imageData.data;
 
-    const backgroundIds = new Set(
+    const backgroundClassIds = new Set(
       Object.entries(segmentation?.legend || {})
         .filter(([, label]) => {
           return BACKGROUND_LABEL_PATTERN.test(String(label).trim());
         })
         .map(([classId]) => Number(classId))
     );
-    if (!backgroundIds.size) backgroundIds.add(0);
-    const classLookupSize = Math.max(...backgroundIds) + 1;
+    if (!backgroundClassIds.size) backgroundClassIds.add(0);
+    const classLookupSize = backgroundClassIds.size ? Math.max(...backgroundClassIds) + 1 : 1;
     const isBackgroundClass = new Uint8Array(classLookupSize);
-    backgroundIds.forEach((classId) => {
+    backgroundClassIds.forEach((classId) => {
       if (classId >= 0 && classId < classLookupSize) {
         isBackgroundClass[classId] = 1;
       }

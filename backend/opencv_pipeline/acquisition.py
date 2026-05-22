@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import cv2
 
 from .config import PipelineConfig
 
 
-def parse_source(value: str):
+def parse_source(value: str) -> int | str:
     if isinstance(value, str) and value.isdigit():
         return int(value)
     return value

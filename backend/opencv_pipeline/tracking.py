@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import hypot
 
+import numpy as np
+
 from .config import PipelineConfig
 from .recognition import DetectedObject
 
@@ -10,9 +12,9 @@ from .recognition import DetectedObject
 @dataclass
 class Track:
     track_id: int
-    contour: object
-    hull: object
-    approx: object
+    contour: np.ndarray
+    hull: np.ndarray
+    approx: np.ndarray
     bbox: tuple[int, int, int, int]
     centroid: tuple[int, int]
     area: float

@@ -40,7 +40,7 @@ def run(config: PipelineConfig) -> None:
 
     stream = VideoStream(config)
     if not stream.is_opened():
-        raise RuntimeError(f"Impossibile aprire la sorgente video: {config.source}")
+        raise RuntimeError(f"Unable to open video source: {config.source}")
 
     preprocessor = Preprocessor(config)
     segmenter = Segmenter(config)

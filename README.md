@@ -30,6 +30,47 @@ npm run dev
 
 Apri l’URL indicato dal server Vite. Le richieste `/api` vengono inoltrate al backend locale.
 
+## Modulo OpenCV realtime (backend)
+
+È disponibile un modulo separato per segmentazione e rilevamento realtime con OpenCV,
+pensato per webcam, IP camera o file video. Questo flusso è indipendente dalla PWA.
+
+### Installazione dipendenze
+
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+### Esecuzione
+
+```bash
+python opencv_app.py --source 0
+```
+
+Esempi sorgenti:
+
+- Webcam: `--source 0`
+- File video: `--source ./video.mp4`
+- IP camera: `--source rtsp://user:pass@ip/stream`
+
+Opzioni utili:
+
+- `--processing-scale 0.6` per ridurre la risoluzione di elaborazione.
+- `--display-scale 1.0` per impostare la scala di output.
+- `--min-area 800` per filtrare artefatti piccoli.
+- `--disable-bg` per disattivare la background subtraction.
+- `--show-mask` per visualizzare la maschera binaria.
+- `--use-cuda` per tentare l’accelerazione GPU (se disponibile).
+
+### Flusso di elaborazione
+
+1. Preprocessing: scala di grigi, Gaussian/Median blur, CLAHE e normalizzazione.
+2. Segmentazione: Otsu + adaptive threshold + soglie basate su istogramma, background subtraction, morfologia ed edge detection.
+3. Riconoscimento: connected components, contorni, convex hull, bounding box, centroidi e area.
+4. Stabilizzazione: tracking semplice tra frame con filtro sulle presenze consecutive.
+5. Rendering: overlay in tempo reale con contorni, box, centroidi ed FPS.
+
 ## Note
 
 - L’intelligenza artificiale usa un modello MobileNet nel browser per riconoscere il materiale.

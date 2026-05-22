@@ -31,6 +31,9 @@ const DEFAULT_RUNTIME_CONFIG = {
 };
 
 const DEFAULT_CATALOG = { ecoMons: [], aiKeywords: [], maxDailyScans: 3 };
+const DEEPLAB_BASE = "pascal";
+const DEEPLAB_QUANTIZATION_BYTES = 2;
+const BACKGROUND_DIM_FACTOR = 0.2;
 
 function App() {
   const [runtimeConfig, setRuntimeConfig] = useState(DEFAULT_RUNTIME_CONFIG);
@@ -211,7 +214,7 @@ function App() {
     }
     if (!segmentationModelPromiseRef.current) {
       segmentationModelPromiseRef.current = window.deeplab
-        .load({ base: "pascal", quantizationBytes: 2 })
+        .load({ base: DEEPLAB_BASE, quantizationBytes: DEEPLAB_QUANTIZATION_BYTES })
         .then((model) => {
           segmentationModelRef.current = model;
           return model;
@@ -254,7 +257,10 @@ function App() {
 
     const backgroundIds = new Set(
       Object.entries(segmentation?.legend || {})
-        .filter(([, label]) => String(label).toLowerCase() === "background")
+        .filter(([, label]) => {
+          const normalized = String(label).toLowerCase();
+          return normalized === "background" || normalized.includes("background") || normalized === "bg";
+        })
         .map(([classId]) => Number(classId))
     );
     if (!backgroundIds.size) backgroundIds.add(0);
@@ -262,9 +268,9 @@ function App() {
     for (let i = 0; i < segmentationMap.length; i += 1) {
       if (!backgroundIds.has(segmentationMap[i])) continue;
       const offset = i * 4;
-      pixels[offset] = Math.round(pixels[offset] * 0.2);
-      pixels[offset + 1] = Math.round(pixels[offset + 1] * 0.2);
-      pixels[offset + 2] = Math.round(pixels[offset + 2] * 0.2);
+      pixels[offset] = Math.round(pixels[offset] * BACKGROUND_DIM_FACTOR);
+      pixels[offset + 1] = Math.round(pixels[offset + 1] * BACKGROUND_DIM_FACTOR);
+      pixels[offset + 2] = Math.round(pixels[offset + 2] * BACKGROUND_DIM_FACTOR);
     }
 
     ctx.putImageData(imageData, 0, 0);

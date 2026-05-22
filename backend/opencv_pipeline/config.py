@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from typing import Optional
 
 
 def ensure_odd(value: int, minimum: int = 3) -> int:
@@ -23,9 +22,9 @@ class PipelineConfig:
     opencv_threads: int = 0
     use_cuda: bool = False
 
-    capture_width: Optional[int] = None
-    capture_height: Optional[int] = None
-    capture_fps: Optional[int] = None
+    capture_width: int | None = None
+    capture_height: int | None = None
+    capture_fps: int | None = None
     capture_buffer: int = 1
 
     gaussian_kernel: int = 5
@@ -65,7 +64,7 @@ class PipelineConfig:
     show_debug: bool = False
 
 
-def parse_args(argv: Optional[list[str]] = None) -> PipelineConfig:
+def parse_args(argv: list[str] | None = None) -> PipelineConfig:
     parser = argparse.ArgumentParser(
         description="Eco-Mon OpenCV realtime segmentation pipeline"
     )

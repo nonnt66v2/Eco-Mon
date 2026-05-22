@@ -58,6 +58,7 @@ Opzioni utili:
 
 - `--processing-scale 0.6` per ridurre la risoluzione di elaborazione.
 - `--display-scale 1.0` per impostare la scala di output.
+- `--window-name "OpenCV Realtime"` per personalizzare il titolo della finestra.
 - `--min-area 800` per filtrare artefatti piccoli.
 - `--disable-bg` per disattivare la background subtraction.
 - `--show-mask` per visualizzare la maschera binaria.

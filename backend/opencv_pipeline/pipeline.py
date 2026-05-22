@@ -49,7 +49,7 @@ def run(config: PipelineConfig) -> None:
     renderer = Renderer(config)
     fps_counter = FpsCounter()
 
-    window_name = "Eco-Mon OpenCV"
+    window_name = config.window_name
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 
     try:

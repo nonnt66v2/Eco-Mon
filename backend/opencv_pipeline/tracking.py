@@ -56,7 +56,8 @@ class SimpleTracker:
             for idx in unmatched_tracks:
                 track = self.tracks[idx]
                 distance = self._distance(track.centroid, detection.centroid)
-                if distance <= self.config.tracker_max_distance and (best_distance is None or distance < best_distance):
+                is_better_match = best_distance is None or distance < best_distance
+                if distance <= self.config.tracker_max_distance and is_better_match:
                     best_distance = distance
                     best_idx = idx
 

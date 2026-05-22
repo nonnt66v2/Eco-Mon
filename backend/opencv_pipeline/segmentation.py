@@ -43,7 +43,7 @@ class Segmenter:
                     detectShadows=config.bg_detect_shadows
                 )
 
-    def _adaptive_c(self, brightness: float) -> int:
+    def _get_adaptive_c_value(self, brightness: float) -> int:
         delta = (self.config.brightness_target - brightness) * self.config.brightness_correction
         return int(round(self.config.adaptive_c + delta))
 
@@ -64,7 +64,7 @@ class Segmenter:
 
     def segment(self, pre: PreprocessResult) -> SegmentationResult:
         gray = pre.normalized
-        adaptive_c = self._adaptive_c(pre.brightness)
+        adaptive_c = self._get_adaptive_c_value(pre.brightness)
         adaptive_block = self.config.adaptive_block_size
 
         _, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)

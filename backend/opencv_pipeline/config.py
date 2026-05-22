@@ -15,6 +15,7 @@ def ensure_odd(value: int, minimum: int = 3) -> int:
 @dataclass
 class PipelineConfig:
     source: str = "0"
+    window_name: str = "OpenCV Realtime"
     processing_scale: float = 0.6
     display_scale: float = 1.0
     flip_horizontal: bool = False
@@ -69,6 +70,7 @@ def parse_args(argv: list[str] | None = None) -> PipelineConfig:
         description="Eco-Mon OpenCV realtime segmentation pipeline"
     )
     parser.add_argument("--source", default="0", help="Camera index, file path, or RTSP/HTTP URL")
+    parser.add_argument("--window-name", default="OpenCV Realtime")
     parser.add_argument("--processing-scale", type=float, default=0.6, help="Scale for processing frames")
     parser.add_argument("--display-scale", type=float, default=1.0, help="Scale for display output")
     parser.add_argument("--flip", action="store_true", help="Flip frames horizontally")
@@ -124,6 +126,7 @@ def parse_args(argv: list[str] | None = None) -> PipelineConfig:
 
     return PipelineConfig(
         source=args.source,
+        window_name=args.window_name,
         processing_scale=processing_scale,
         display_scale=display_scale,
         flip_horizontal=args.flip,

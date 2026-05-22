@@ -31,6 +31,10 @@ const DEFAULT_RUNTIME_CONFIG = {
 };
 
 const DEFAULT_CATALOG = { ecoMons: [], aiKeywords: [], maxDailyScans: 3 };
+const DEEPLAB_BASE = "pascal";
+const DEEPLAB_QUANTIZATION_BYTES = 2;
+const BACKGROUND_DIM_FACTOR = 0.2;
+const BACKGROUND_KEYWORD_PATTERN = /(?:^|\b)(background|bg)(?:\b|$)/i;
 
 function App() {
   const [runtimeConfig, setRuntimeConfig] = useState(DEFAULT_RUNTIME_CONFIG);
@@ -65,6 +69,8 @@ function App() {
   const cameraStreamRef = useRef(null);
   const aiModelRef = useRef(null);
   const aiModelPromiseRef = useRef(null);
+  const segmentationModelRef = useRef(null);
+  const segmentationModelPromiseRef = useRef(null);
   const selectedImageRef = useRef(null);
   const selectedImageUrlRef = useRef("");
   const recognitionInProgressRef = useRef(false);
@@ -202,6 +208,89 @@ function App() {
     return ensureAiModel().catch(() => null);
   }, [ensureAiModel]);
 
+  const ensureSegmentationModel = useCallback(() => {
+    if (segmentationModelRef.current) return Promise.resolve(segmentationModelRef.current);
+    if (!window.deeplab || !window.tf) {
+      return Promise.resolve(null);
+    }
+    if (!segmentationModelPromiseRef.current) {
+      segmentationModelPromiseRef.current = window.deeplab
+        .load({ base: DEEPLAB_BASE, quantizationBytes: DEEPLAB_QUANTIZATION_BYTES })
+        .then((model) => {
+          segmentationModelRef.current = model;
+          return model;
+        })
+        .catch(() => {
+          segmentationModelPromiseRef.current = null;
+          return null;
+        });
+    }
+    return segmentationModelPromiseRef.current;
+  }, []);
+
+  const prepareSegmentationModel = useCallback(() => {
+    return ensureSegmentationModel().catch(() => null);
+  }, [ensureSegmentationModel]);
+
+  const preprocessWithSegmentation = useCallback(async (canvas) => {
+    const model = await ensureSegmentationModel();
+    if (!model) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    if (!width || !height) return;
+
+    let segmentation;
+    try {
+      segmentation = await model.segment(canvas);
+    } catch {
+      return;
+    }
+
+    const segmentationMap = segmentation?.segmentationMap;
+    if (!segmentationMap || segmentationMap.length !== width * height) {
+      console.warn(
+        `Segmentation map size mismatch (expected ${width * height}, got ${segmentationMap?.length ?? 0}), skipping preprocessing.`
+      );
+      return;
+    }
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const pixels = imageData.data;
+
+    const backgroundClassIds = new Set(
+      Object.entries(segmentation?.legend || {})
+        .filter(([, label]) => {
+          return BACKGROUND_KEYWORD_PATTERN.test(String(label).trim());
+        })
+        .map(([classId]) => Number(classId))
+    );
+    if (!backgroundClassIds.size) backgroundClassIds.add(0);
+    const classLookupSize = backgroundClassIds.size
+      ? Array.from(backgroundClassIds).reduce((maxClass, classId) => Math.max(maxClass, classId), 0) + 1
+      : 1;
+    const isBackgroundClass = new Uint8Array(classLookupSize);
+    backgroundClassIds.forEach((classId) => {
+      if (classId >= 0 && classId < classLookupSize) {
+        isBackgroundClass[classId] = 1;
+      }
+    });
+
+    for (let i = 0; i < segmentationMap.length; i += 1) {
+      const classId = segmentationMap[i];
+      if (classId < 0 || classId >= classLookupSize || !isBackgroundClass[classId]) continue;
+      const offset = i * 4;
+      pixels[offset] = Math.round(pixels[offset] * BACKGROUND_DIM_FACTOR);
+      pixels[offset + 1] = Math.round(pixels[offset + 1] * BACKGROUND_DIM_FACTOR);
+      pixels[offset + 2] = Math.round(pixels[offset + 2] * BACKGROUND_DIM_FACTOR);
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+  }, [ensureSegmentationModel]);
+
   const getCaptureCanvas = useCallback(() => {
     if (!captureCanvasRef.current) {
       captureCanvasRef.current = document.createElement("canvas");
@@ -283,10 +372,11 @@ function App() {
       setResultBin("—");
       showToast("Foto caricata. Premi Analizza.");
       prepareAiModel();
+      prepareSegmentationModel();
     } catch {
       showToast("Immagine non valida. Riprova.");
     }
-  }, [loadImageFromFile, prepareAiModel, showToast, stopCameraStream]);
+  }, [loadImageFromFile, prepareAiModel, prepareSegmentationModel, showToast, stopCameraStream]);
 
   const ensureFallbackInput = useCallback(() => {
     if (fallbackInputRef.current) return fallbackInputRef.current;
@@ -367,11 +457,12 @@ function App() {
       setResultBin("—");
       showToast("Fotocamera attiva. Inquadra il rifiuto!");
       prepareAiModel();
+      prepareSegmentationModel();
     } catch (error) {
       showToast(getCameraErrorMessage(error));
       requestFallbackCapture();
     }
-  }, [getCameraErrorMessage, prepareAiModel, requestCameraStream, requestFallbackCapture, resetSelectedImage, showToast, stopCameraStream, syncCanvasSize]);
+  }, [getCameraErrorMessage, prepareAiModel, prepareSegmentationModel, requestCameraStream, requestFallbackCapture, resetSelectedImage, showToast, stopCameraStream, syncCanvasSize]);
 
   const mapPredictionsToEcoMon = useCallback((predictions) => {
     const scores = new Map();
@@ -466,6 +557,8 @@ function App() {
         ctx.drawImage(selectedImageRef.current, 0, 0, canvas.width, canvas.height);
       }
 
+      await preprocessWithSegmentation(canvas);
+
       let predictions = [];
       try {
         predictions = await model.classify(canvas, 5);
@@ -512,7 +605,7 @@ function App() {
     } finally {
       recognitionInProgressRef.current = false;
     }
-  }, [ensureAiModel, getCaptureCanvas, mapPredictionsToEcoMon, runtimeConfig.noDetectionResetMs, showToast, syncCanvasSize]);
+  }, [ensureAiModel, getCaptureCanvas, mapPredictionsToEcoMon, preprocessWithSegmentation, runtimeConfig.noDetectionResetMs, showToast, syncCanvasSize]);
 
   useEffect(() => {
     if (!cameraActive) return undefined;

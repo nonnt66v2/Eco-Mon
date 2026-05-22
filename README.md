@@ -6,19 +6,34 @@ Il bambino inquadra un rifiuto, l’app suggerisce il bidone giusto e sblocca un
 ## Funzionalità demo
 
 - Scanner PWA con fotocamera e riconoscimento AI on-device.
+- Catalogo carte e stato giornaliero gestiti dal backend locale con SQLite.
 - Anti-cheat: massimo 3 rifiuti al giorno e blocco duplicati giornalieri.
-- Pokedex persistente via `localStorage`.
+- Pokedex persistente salvato nel database locale.
 - Modalità offline con service worker.
 
+### Installazione
+```bash 
+
+cd frontend/ && npm install  && cd ../backend/ && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+```
 ## Avvio locale
+
+```bash
+cd backend
+python app.py
+```
+
+Il server Flask esegue automaticamente `backend/db/init_db.py` all'avvio e usa `backend/db/ecomon.sqlite3`.
+
+In un secondo terminale:
 
 ```bash
 cd frontend
 npm install
-npm run start
+npm run dev
 ```
 
-Apri l’URL indicato dal server (es. `http://localhost:3000`).
+Apri l’URL indicato dal server Vite. Le richieste `/api` vengono inoltrate al backend locale.
 
 ## Note
 

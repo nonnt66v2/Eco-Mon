@@ -1,92 +1,51 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '../style/App.css';
+import HomeSection from './components/sections/HomeSection';
+import ScannerSection from './components/sections/ScannerSection';
+import PokedexSection from './components/sections/PokedexSection';
+import BottomNav from './components/navigation/BottomNav';
+import ToastMessage from './components/feedback/ToastMessage';
+import RewardModal from './components/feedback/RewardModal';
+import {
+  buildAiKeywordMaps,
+  createDefaultState
+} from './utils/stateUtils';
+import {
+  confirmScan,
+  fetchConfig,
+  fetchCatalog,
+  fetchGameState,
+  resetGameState
+} from './utils/backendApi';
 
-const ECO_MONS = [
-  { id: "pet", name: "PET-Dragon", material: "Plastica (PET)", bin: "GIALLO", color: "#fbbf24", description: "Bottiglie e flaconi in plastica trasparente." },
-  { id: "paper", name: "Carta-Kong", material: "Carta", bin: "BLU", color: "#60a5fa", description: "Fogli, cartoncini e giornali puliti." },
-  { id: "tetra", name: "Tetra-Fox", material: "Tetrapak", bin: "GIALLO", color: "#f59e0b", description: "Cartoni per bevande e succhi." },
-  { id: "glass", name: "Vetro-Lumaca", material: "Vetro", bin: "VERDE", color: "#22c55e", description: "Bottiglie e vasetti in vetro." },
-  { id: "organic", name: "Bio-Fungus", material: "Organico", bin: "MARRONE", color: "#a16207", description: "Scarti di cibo, bucce, fondi di caffè." },
-  { id: "metal", name: "Alu-Rex", material: "Alluminio", bin: "GIALLO", color: "#94a3b8", description: "Lattine, scatolette e piccoli metalli." }
-];
+const DEFAULT_RUNTIME_CONFIG = {
+  storageKey: 'ecomon-state',
+  aiMinConfidence: 0.4,
+  autoScanIntervalMs: 1000,
+  noDetectionResetMs: 10000,
+  cameraConstraints: [
+    { video: { facingMode: { ideal: 'environment' } } },
+    { video: { facingMode: 'environment' } },
+    { video: true }
+  ]
+};
 
-const MAX_DAILY_SCANS = 100;
-const STORAGE_KEY = "ecomon-state";
-const AI_MIN_CONFIDENCE = 0.4;
-const AUTO_SCAN_INTERVAL_MS = 1000;
-const NO_DETECTION_RESET_MS = 10000;
-const CAMERA_CONSTRAINTS = [
-  { video: { facingMode: { ideal: "environment" } } },
-  { video: { facingMode: "environment" } },
-  { video: true }
-];
-
-const AI_KEYWORDS = [
-  { id: "pet", keywords: ["plastic bottle", "water bottle", "soda bottle", "pop bottle", "detergent bottle"] },
-  { id: "paper", keywords: ["paper", "newspaper", "book", "notebook", "cardboard", "envelope", "carton box"] },
-  { id: "tetra", keywords: ["milk carton", "juice carton", "tetra", "drink carton", "beverage carton"] },
-  { id: "glass", keywords: ["glass bottle", "wine bottle", "beer bottle", "jar", "vase"] },
-  { id: "organic", keywords: ["banana", "apple", "orange", "vegetable", "salad", "sandwich", "pizza", "mushroom"] },
-  { id: "metal", keywords: ["soda can", "beer can", "tin can", "aluminum", "steel", "metal can"] }
-];
-
-function buildAiKeywordMaps() {
-  const wordMap = new Map();
-  const phraseList = [];
-
-  AI_KEYWORDS.forEach((hint) => {
-    hint.keywords.forEach((keyword) => {
-      const normalized = keyword.toLowerCase();
-      if (normalized.includes(" ")) {
-        const escaped = normalized.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
-        phraseList.push({ id: hint.id, regex: new RegExp(`\\b${escaped}\\b`) });
-        return;
-      }
-      if (!wordMap.has(normalized)) {
-        wordMap.set(normalized, new Set());
-      }
-      wordMap.get(normalized).add(hint.id);
-    });
-  });
-
-  return { wordMap, phraseList };
-}
-
-function getToday() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function createDefaultState() {
-  return { lastDate: getToday(), todayScans: 0, todayCollected: [], unlocked: {} };
-}
-
-function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return createDefaultState();
-
-  try {
-    const parsed = JSON.parse(raw);
-    return {
-      lastDate: parsed.lastDate || getToday(),
-      todayScans: Number(parsed.todayScans) || 0,
-      todayCollected: Array.isArray(parsed.todayCollected) ? parsed.todayCollected : [],
-      unlocked: parsed.unlocked && typeof parsed.unlocked === "object" ? parsed.unlocked : {}
-    };
-  } catch {
-    return createDefaultState();
-  }
-}
-
-function saveState(state) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
+const DEFAULT_CATALOG = { ecoMons: [], aiKeywords: [], maxDailyScans: 3 };
 
 function App() {
-  const { wordMap: AI_KEYWORD_WORDS, phraseList: AI_KEYWORD_PHRASES } = useMemo(buildAiKeywordMaps, []);
+  const [runtimeConfig, setRuntimeConfig] = useState(DEFAULT_RUNTIME_CONFIG);
+  const [catalog, setCatalog] = useState(DEFAULT_CATALOG);
+  const { wordMap: AI_KEYWORD_WORDS, phraseList: AI_KEYWORD_PHRASES } = useMemo(
+    () => buildAiKeywordMaps(catalog.aiKeywords),
+    [catalog.aiKeywords]
+  );
+  const sectionOrder = useMemo(() => ["home", "scan", "dex"], []);
 
   const cameraFeedRef = useRef(null);
   const captureCanvasRef = useRef(null);
   const fallbackInputRef = useRef(null);
+  const carouselRef = useRef(null);
+  const sectionRefs = useRef({});
 
   const [aiStatus, setAiStatus] = useState({ message: "AI pronta a iniziare. Attiva la fotocamera.", state: "" });
   const [confirmEnabled, setConfirmEnabled] = useState(false);
@@ -97,9 +56,10 @@ function App() {
   const [toast, setToast] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
 
-  const [state, setState] = useState(loadState);
+  const [state, setState] = useState(createDefaultState());
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMon, setModalMon] = useState(null);
+  const [activeSection, setActiveSection] = useState("home");
 
   const currentRecognitionRef = useRef(null);
   const cameraStreamRef = useRef(null);
@@ -122,19 +82,49 @@ function App() {
     setOnline(navigator.onLine);
   }, []);
 
-  const resetIfNewDay = useCallback((prevState) => {
-    const today = getToday();
-    if (prevState.lastDate !== today) {
-      const next = { ...prevState, lastDate: today, todayScans: 0, todayCollected: [] };
-      saveState(next);
-      return next;
-    }
-    return prevState;
-  }, []);
-
   useEffect(() => {
-    setState((prev) => resetIfNewDay(prev));
-  }, [resetIfNewDay]);
+    let active = true;
+
+    const bootstrap = async () => {
+      const [catalogResponse, stateResponse, configResponse] = await Promise.allSettled([
+        fetchCatalog(),
+        fetchGameState(),
+        fetchConfig()
+      ]);
+
+      if (!active) return;
+
+      if (configResponse.status === 'fulfilled') {
+        setRuntimeConfig({
+          ...DEFAULT_RUNTIME_CONFIG,
+          ...configResponse.value,
+          cameraConstraints: Array.isArray(configResponse.value.cameraConstraints) && configResponse.value.cameraConstraints.length
+            ? configResponse.value.cameraConstraints
+            : DEFAULT_RUNTIME_CONFIG.cameraConstraints
+        });
+      }
+
+      if (catalogResponse.status === 'fulfilled') {
+        setCatalog({
+          ecoMons: Array.isArray(catalogResponse.value.ecoMons) ? catalogResponse.value.ecoMons : DEFAULT_CATALOG.ecoMons,
+          aiKeywords: Array.isArray(catalogResponse.value.aiKeywords) ? catalogResponse.value.aiKeywords : DEFAULT_CATALOG.aiKeywords,
+          maxDailyScans: Number(catalogResponse.value.maxDailyScans) || DEFAULT_CATALOG.maxDailyScans
+        });
+      }
+
+      if (stateResponse.status === 'fulfilled') {
+        setState(stateResponse.value.state || createDefaultState());
+      } else {
+        setState(createDefaultState());
+      }
+    };
+
+    void bootstrap();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     window.addEventListener("online", updateOnlineStatus);
@@ -155,6 +145,31 @@ function App() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const root = carouselRef.current;
+    if (!root) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visibleEntry = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+
+        if (visibleEntry?.target?.dataset?.section) {
+          setActiveSection(visibleEntry.target.dataset.section);
+        }
+      },
+      { root, threshold: [0.45, 0.6, 0.8] }
+    );
+
+    sectionOrder.forEach((sectionId) => {
+      const element = sectionRefs.current[sectionId];
+      if (element) observer.observe(element);
+    });
+
+    return () => observer.disconnect();
+  }, [sectionOrder]);
 
   const setAiStatusState = useCallback((message, stateClass = "") => {
     setAiStatus({ message, state: stateClass });
@@ -294,7 +309,7 @@ function App() {
 
   const requestCameraStream = useCallback(async () => {
     let lastError = null;
-    for (const constraints of CAMERA_CONSTRAINTS) {
+    for (const constraints of runtimeConfig.cameraConstraints) {
       try {
         return await navigator.mediaDevices.getUserMedia(constraints);
       } catch (error) {
@@ -303,7 +318,7 @@ function App() {
       }
     }
     throw lastError || new Error("Camera unavailable");
-  }, []);
+  }, [runtimeConfig.cameraConstraints]);
 
   const getCameraErrorMessage = useCallback((error) => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -393,21 +408,19 @@ function App() {
       }
     });
 
-    if (!bestId || bestScore < AI_MIN_CONFIDENCE) return null;
+    if (!bestId || bestScore < runtimeConfig.aiMinConfidence) return null;
 
-    const mon = ECO_MONS.find((item) => item.id === bestId);
+    const mon = catalog.ecoMons.find((item) => item.id === bestId);
     if (!mon) return null;
 
     return { mon, confidence: Math.round(bestScore * 100) };
-  }, [AI_KEYWORD_PHRASES, AI_KEYWORD_WORDS]);
+  }, [AI_KEYWORD_PHRASES, AI_KEYWORD_WORDS, catalog.ecoMons, runtimeConfig.aiMinConfidence]);
 
   const recognizeWaste = useCallback(async (fromAutoScan = false) => {
     if (recognitionInProgressRef.current) return;
     recognitionInProgressRef.current = true;
 
     try {
-      setState((prev) => resetIfNewDay(prev));
-
       if (!cameraStreamRef.current && !selectedImageRef.current) {
         if (!fromAutoScan) showToast("Attiva la fotocamera o scatta/carica una foto prima di analizzare.");
         return;
@@ -466,7 +479,7 @@ function App() {
         if (previousTypeId !== null) {
           const now = Date.now();
           const elapsed = now - lastDetectionAtRef.current;
-          if (elapsed < NO_DETECTION_RESET_MS) return;
+          if (elapsed < runtimeConfig.noDetectionResetMs) return;
 
           currentRecognitionRef.current = null;
           lastDetectionAtRef.current = 0;
@@ -499,7 +512,7 @@ function App() {
     } finally {
       recognitionInProgressRef.current = false;
     }
-  }, [ensureAiModel, getCaptureCanvas, mapPredictionsToEcoMon, resetIfNewDay, showToast, syncCanvasSize]);
+  }, [ensureAiModel, getCaptureCanvas, mapPredictionsToEcoMon, runtimeConfig.noDetectionResetMs, showToast, syncCanvasSize]);
 
   useEffect(() => {
     if (!cameraActive) return undefined;
@@ -509,48 +522,41 @@ function App() {
     };
 
     runAutoScan();
-    const intervalId = window.setInterval(runAutoScan, AUTO_SCAN_INTERVAL_MS);
+    const intervalId = window.setInterval(runAutoScan, runtimeConfig.autoScanIntervalMs);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [cameraActive, recognizeWaste]);
+  }, [cameraActive, recognizeWaste, runtimeConfig.autoScanIntervalMs]);
 
-  const confirmDeposit = useCallback(() => {
-    setState((prev) => {
-      const next = resetIfNewDay(prev);
-      const current = currentRecognitionRef.current;
+  const confirmDeposit = useCallback(async () => {
+    const current = currentRecognitionRef.current;
 
-      if (!current) {
-        showToast("Nessun rifiuto riconosciuto. Premi Analizza.");
-        return next;
-      }
-      if (next.todayScans >= MAX_DAILY_SCANS) {
-        showToast("Limite giornaliero raggiunto. Torna domani!");
-        return next;
-      }
-      if (next.todayCollected.includes(current.id)) {
-        showToast("Hai già salvato questo Eco-Mon oggi! Cerca altri materiali.");
-        return next;
-      }
+    if (!current) {
+      showToast("Nessun rifiuto riconosciuto. Premi Analizza.");
+      return;
+    }
 
-      const updated = {
-        ...next,
-        todayScans: next.todayScans + 1,
-        todayCollected: [...next.todayCollected, current.id],
-        unlocked: { ...next.unlocked, [current.id]: true }
-      };
-      saveState(updated);
-
+    try {
+      const response = await confirmScan(current.id);
+      setState(response.state);
       currentRecognitionRef.current = null;
       setConfirmEnabled(false);
-      setModalMon(current);
+      setModalMon(response.card || current);
       setModalOpen(true);
-      return updated;
-    });
-  }, [resetIfNewDay, showToast]);
+    } catch (error) {
+      showToast(error.message || "Impossibile salvare la carta.");
+    }
+  }, [showToast]);
 
-  const resetDebugData = useCallback(() => {
+  const scrollToSection = useCallback((sectionId) => {
+    const section = sectionRefs.current[sectionId];
+    if (!section) return;
+    setActiveSection(sectionId);
+    section.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+  }, []);
+
+  const resetDebugData = useCallback(async () => {
     const video = cameraFeedRef.current;
     stopCameraStream();
     setCameraActive(false);
@@ -561,11 +567,12 @@ function App() {
       video.load();
     }
 
-    const freshState = createDefaultState();
-    localStorage.removeItem(STORAGE_KEY);
-    saveState(freshState);
-
-    setState(freshState);
+    try {
+      const response = await resetGameState();
+      setState(response.state || createDefaultState());
+    } catch {
+      setState(createDefaultState());
+    }
     currentRecognitionRef.current = null;
     lastDetectionAtRef.current = 0;
     setConfirmEnabled(false);
@@ -575,121 +582,54 @@ function App() {
     setModalOpen(false);
     setModalMon(null);
     showToast("Dati locali azzerati (debug).");
-  }, [resetSelectedImage, showToast, stopCameraStream]);
+    scrollToSection("home");
+  }, [resetSelectedImage, scrollToSection, showToast, stopCameraStream]);
 
   const unlockedCount = Object.values(state.unlocked).filter(Boolean).length;
-  const progressPercent = Math.min(100, (unlockedCount / ECO_MONS.length) * 100);
+  const progressPercent = Math.min(100, (unlockedCount / catalog.ecoMons.length) * 100);
 
   return (
     <>
-      <header className="hero">
-        <div>
-          <p className="eyebrow">PWA · Edge AI · Gamification</p>
-          <h1>EcoMon: Throw Them All!</h1>
-          <p>
-            Scansiona un rifiuto, scopri il bidone giusto e colleziona il tuo Eco-Mon. Ogni gesto corretto
-            salva il pianeta e sblocca nuovi mostriciattoli.
-          </p>
+      <div className="app-shell">
+        <div className="carousel" ref={carouselRef} aria-label="Sezioni EcoMon">
+          <HomeSection
+            online={online}
+            progressPercent={progressPercent}
+            maxDailyScans={catalog.maxDailyScans}
+            todayScans={state.todayScans}
+            sectionRef={(element) => { sectionRefs.current.home = element; }}
+          />
+
+          <ScannerSection
+            sectionRef={(element) => { sectionRefs.current.scan = element; }}
+            cameraFeedRef={cameraFeedRef}
+            startCamera={startCamera}
+            aiStatus={aiStatus}
+            confirmDeposit={confirmDeposit}
+            confirmEnabled={confirmEnabled}
+            resetDebugData={resetDebugData}
+            resultText={resultText}
+            resultConfidence={resultConfidence}
+            resultBin={resultBin}
+          />
+
+          <PokedexSection
+            sectionRef={(element) => { sectionRefs.current.dex = element; }}
+            ecoMons={catalog.ecoMons}
+            unlocked={state.unlocked}
+          />
         </div>
-        <div className="status" id="onlineStatus" style={{ color: online ? "#22c55e" : "#f87171" }}>
-          {online ? "Online" : "Offline"}
-        </div>
-      </header>
 
-      <main>
-        <section className="card scanner">
-          <div className="card-header">
-            <div>
-              <h2>Scanner EcoMon</h2>
-              <p>Inquadra il rifiuto: con la fotocamera attiva la scansione parte in automatico, poi premi “Fatto!”.</p>
-            </div>
-            <div className="limit" id="dailyLimit">Scansioni di oggi: {state.todayScans}/{MAX_DAILY_SCANS}</div>
-          </div>
-
-          <div className="scanner-grid">
-            <div className="camera">
-              <video ref={cameraFeedRef} id="cameraFeed" autoPlay muted playsInline></video>
-              <div className="camera-overlay">
-                <span>Fotocamera pronta</span>
-              </div>
-            </div>
-            <div className="controls">
-              <button className="primary" id="startCamera" onClick={startCamera}>Attiva fotocamera</button>
-              <div className={`ai-status ${aiStatus.state}`} id="aiStatus">{aiStatus.message}</div>
-              <button className="secondary" id="analyzeBtn" onClick={recognizeWaste}>Analizza</button>
-              <button className="primary" id="confirmBtn" onClick={confirmDeposit} disabled={!confirmEnabled}>Fatto!</button>
-              <button className="debug" id="debugResetBtn" onClick={resetDebugData}>Reset dati locali (debug)</button>
-              <p className="hint">Suggerimento: illumina bene l’oggetto. La fotocamera continua a scandire mentre resta attiva.</p>
-            </div>
-          </div>
-
-          <div className="result" id="scanResult">
-            <span className="label">Rilevato:</span>
-            <strong id="resultText">{resultText}</strong>
-            <span className="confidence" id="resultConfidence">{resultConfidence}</span>
-            <span className="bin" id="resultBin">{resultBin}</span>
-          </div>
-        </section>
-
-        <section className="card">
-          <h2>Anti-cheat &amp; progressi</h2>
-          <ul className="rules">
-            <li>Massimo 3 rifiuti scannerizzabili al giorno.</li>
-            <li>Lo stesso materiale non vale due volte nella stessa giornata.</li>
-            <li>I tuoi Eco-Mon restano nel Pokedex per sempre.</li>
-          </ul>
-          <div className="progress">
-            <div className="progress-bar" id="progressBar" style={{ width: `${progressPercent}%` }}></div>
-          </div>
-        </section>
-
-        <section className="card">
-          <h2>Pokedex Eco-Mon</h2>
-          <p>Completa la collezione salvando più materiali possibili.</p>
-          <div className="pokedex" id="pokedexGrid">
-            {ECO_MONS.map((mon) => {
-              const isUnlocked = Boolean(state.unlocked[mon.id]);
-              return (
-                <div
-                  key={mon.id}
-                  className={`pokedex-card ${isUnlocked ? "" : "locked"}`}
-                  style={{
-                    borderColor: isUnlocked ? `${mon.color}55` : "rgba(148, 163, 184, 0.2)",
-                    background: isUnlocked
-                      ? `linear-gradient(135deg, ${mon.color}22, rgba(15, 23, 42, 0.95))`
-                      : "rgba(15, 23, 42, 0.9)"
-                  }}
-                >
-                  <strong>{isUnlocked ? mon.name : "???"}</strong>
-                  <span className="badge">{mon.material}</span>
-                  <p>{isUnlocked ? mon.description : "Sblocca questo Eco-Mon con una scansione."}</p>
-                  <span className="badge">Bidone {mon.bin}</span>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      </main>
-
-      <div className={`toast ${toast ? "show" : ""}`} id="toast">{toast}</div>
-
-      <div className="modal" id="cardModal" aria-hidden={!modalOpen} onClick={(e) => {
-        if (e.target.id === "cardModal") setModalOpen(false);
-      }}>
-        <div className="modal-content">
-          <button className="close" id="closeModal" aria-label="Chiudi" onClick={() => setModalOpen(false)}>×</button>
-          <div className="modal-card" id="modalCard">
-            {modalMon && (
-              <>
-                <h3>{modalMon.name}</h3>
-                <p>{modalMon.description}</p>
-                <span className="badge">Materiale: {modalMon.material}</span>
-                <span className="badge">Bidone: {modalMon.bin}</span>
-              </>
-            )}
-          </div>
-        </div>
+        <BottomNav activeSection={activeSection} onNavigate={scrollToSection} />
       </div>
+
+      <ToastMessage toast={toast} />
+
+      <RewardModal
+        modalOpen={modalOpen}
+        modalMon={modalMon}
+        onClose={() => setModalOpen(false)}
+      />
     </>
   );
 }

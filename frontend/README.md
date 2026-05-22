@@ -7,6 +7,8 @@ npm install
 npm run dev
 ```
 
+Il backend locale va avviato separatamente dalla cartella `backend` con `python app.py`.
+
 ## Build produzione
 
 ```bash

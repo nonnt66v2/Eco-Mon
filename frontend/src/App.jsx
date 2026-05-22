@@ -34,7 +34,7 @@ const DEFAULT_CATALOG = { ecoMons: [], aiKeywords: [], maxDailyScans: 3 };
 const DEEPLAB_BASE = "pascal";
 const DEEPLAB_QUANTIZATION_BYTES = 2;
 const BACKGROUND_DIM_FACTOR = 0.2;
-const BACKGROUND_LABEL_REGEX = /(?:^|\b)(background|bg)(?:\b|$)/i;
+const BACKGROUND_LABEL_PATTERN = /(?:^|\b)(background|bg)(?:\b|$)/i;
 
 function App() {
   const [runtimeConfig, setRuntimeConfig] = useState(DEFAULT_RUNTIME_CONFIG);
@@ -248,7 +248,10 @@ function App() {
     }
 
     const segmentationMap = segmentation?.segmentationMap;
-    if (!segmentationMap || segmentationMap.length !== width * height) return;
+    if (!segmentationMap || segmentationMap.length !== width * height) {
+      console.warn("Segmentation map size mismatch, skipping preprocessing.");
+      return;
+    }
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -259,7 +262,7 @@ function App() {
     const backgroundIds = new Set(
       Object.entries(segmentation?.legend || {})
         .filter(([, label]) => {
-          return BACKGROUND_LABEL_REGEX.test(String(label).trim());
+          return BACKGROUND_LABEL_PATTERN.test(String(label).trim());
         })
         .map(([classId]) => Number(classId))
     );
